@@ -19,7 +19,7 @@ from uagents_core.contrib.protocols.chat import (ChatAcknowledgement, ChatMessag
 
 load_dotenv()
 agent = Agent(name=os.getenv("AGENT_NAME", "BrandPilot") + " spike", seed=(os.getenv("AGENT_SEED") or secrets.token_hex(16)) + "-spike",
-              port=8001, mailbox=True, publish_agent_details=True)
+              port=int(os.getenv("SPIKE_PORT", "8011")), mailbox=True, publish_agent_details=True)
 proto = Protocol(spec=chat_protocol_spec)
 
 
