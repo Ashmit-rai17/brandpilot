@@ -1,0 +1,8 @@
+uagents==0.25.5
+uagents-core==0.4.12
+pydantic>=2.7
+requests
+python-dotenv
+pillow>=10.3
+numpy
+pytest

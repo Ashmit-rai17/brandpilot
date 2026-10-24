@@ -1,0 +1,95 @@
+"""Controlled revisions. The LLM proposes a Patch; only this code changes a DesignSystem."""
+from __future__ import annotations
+
+from .kb import contrast, set_saturation, shift_temperature
+from .models import DesignSystem, Patch
+
+ALLOWED = {"saturation", "temperature", "spacing", "image_style"}
+# Which design-system fields each patch key may touch. Everything else must stay identical.
+TOUCHES = {
+    "saturation": {"saturation", "palette.primary", "palette.accent"},
+    "temperature": {"palette.primary", "palette.accent"},
+    "spacing": {"spacing"},
+    "image_style": {"image_style"},
+}
+LOCK_OF = {"saturation": "palette", "temperature": "palette", "spacing": "spacing", "image_style": "image_style"}
+
+
+class RevisionRejected(Exception):
+    pass
+
+
+def apply_patch(ds: DesignSystem, patch: Patch) -> DesignSystem:
+    if patch.wants_font_change and "type" in ds.locked:
+        raise RevisionRejected("Typography is locked in this design system, so I kept the fonts as they are.")
+    if patch.is_empty():
+        raise RevisionRejected("I couldn't map that request to a change I'm allowed to make. "
+                               "I can change color vibrancy, warmth, spacing or image feel.")
+    for key in ALLOWED:
+        if getattr(patch, key) is not None and LOCK_OF[key] in ds.locked:
+            raise RevisionRejected(f"{LOCK_OF[key].replace('_', ' ').title()} is locked.")
+
+    new = ds.model_copy(deep=True)
+    pal = new.palette
+    if patch.saturation and patch.saturation != ds.saturation:
+        pal.primary = set_saturation(ds.palette.primary, ds.saturation, patch.saturation)
+        pal.accent = set_saturation(ds.palette.accent, ds.saturation, patch.saturation)
+        new.saturation = patch.saturation
+    if patch.temperature:
+        pal.primary = shift_temperature(pal.primary, patch.temperature)
+        pal.accent = shift_temperature(pal.accent, patch.temperature)
+    if patch.spacing:
+        new.spacing = patch.spacing
+    if patch.image_style:
+        new.image_style = patch.image_style
+
+    new.version = ds.version + 1
+    changes = diff(ds, new)
+    if not changes:
+        raise RevisionRejected("That's already how the design system is set, so nothing would change.")
+    new.history = ds.history + [{"from": ds.version, "to": new.version,
+                                 "patch": patch.model_dump(exclude_none=True, exclude={"wants_font_change"}),
+                                 "changed": [c[0] for c in changes]}]
+    _assert_preserved(ds, new, patch)
+    return new
+
+
+def _flat(ds: DesignSystem) -> dict:
+    d = ds.model_dump(exclude={"version", "history"})
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            for k2, v2 in v.items():
+                out[f"{k}.{k2}"] = v2
+        else:
+            out[k] = v
+    return out
+
+
+def diff(old: DesignSystem, new: DesignSystem) -> list[tuple[str, object, object]]:
+    a, b = _flat(old), _flat(new)
+    return [(k, a[k], b[k]) for k in a if a[k] != b[k]]
+
+
+def preserved(old: DesignSystem, new: DesignSystem) -> list[str]:
+    a, b = _flat(old), _flat(new)
+    return [k for k in a if a[k] == b[k]]
+
+
+def _assert_preserved(old: DesignSystem, new: DesignSystem, patch: Patch) -> None:
+    allowed = set().union(*(TOUCHES[k] for k in ALLOWED if getattr(patch, k) is not None))
+    illegal = [k for k, _, _ in diff(old, new) if k not in allowed]
+    if illegal:
+        raise RevisionRejected(f"Internal guard: patch tried to change {illegal}")
+
+
+def palette_contrast_ok(ds: DesignSystem) -> float:
+    return contrast(ds.palette.text, ds.palette.background)
+
+
+LABELS = {
+    "saturation": "Color vibrancy", "palette.primary": "Primary color", "palette.accent": "Accent color",
+    "spacing": "Spacing", "image_style": "Image style", "type.heading": "Heading font",
+    "type.body": "Body font", "type.scale": "Type scale", "palette.text": "Text color",
+    "palette.background": "Background color", "style_id": "Style",
+}

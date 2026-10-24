@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "tag_vocabulary": {
+    "industry": ["dev-tools", "saas", "fintech", "health", "wellness", "d2c", "food", "media", "creator", "education", "enterprise", "consumer-app", "luxury", "sustainability", "events"],
+    "personality": ["precise", "calm", "premium", "trustworthy", "warm", "crafted", "playful", "bold", "rebellious", "youthful", "optimistic", "fresh", "technical", "friendly", "minimal", "energetic"]
+  },
+  "styles": [
+    {
+      "id": "dark_minimal",
+      "name": "Dark Minimal",
+      "summary": "Near-black surfaces, one luminous accent, tight neutral sans.",
+      "use_when": ["dev-tools", "saas", "enterprise", "precise", "calm", "premium", "technical", "minimal"],
+      "avoid_when": ["food", "events", "playful", "warm", "youthful"],
+      "palette": {"background": "#0B0D12", "surface": "#161A22", "text": "#F2F4F8", "primary": "#5B6CFF", "accent": "#8A7CFF"},
+      "type": {"heading": "inter", "body": "inter", "scale": 1.333},
+      "spacing": "high",
+      "panel": "none",
+      "image_style": "abstract soft light gradients and subtle glow on a dark field, cinematic, high-end",
+      "prompt_fragment": "minimal dark abstract composition, deep near-black background, a single soft luminous glow, smooth gradients",
+      "negative": ["clutter", "bright backgrounds", "cartoon", "clipart"]
+    },
+    {
+      "id": "editorial",
+      "name": "Warm Editorial",
+      "summary": "High-contrast serif headlines, generous margins, restrained warm color.",
+      "use_when": ["media", "d2c", "luxury", "food", "crafted", "premium", "warm", "trustworthy", "calm"],
+      "avoid_when": ["playful", "rebellious", "energetic", "youthful"],
+      "palette": {"background": "#F5F0E8", "surface": "#EBE2D3", "text": "#1C1917", "primary": "#9A3412", "accent": "#C2410C"},
+      "type": {"heading": "playfair_display", "body": "inter", "scale": 1.5},
+      "spacing": "high",
+      "panel": "none",
+      "image_style": "natural light, soft film grain, still-life photography, muted warm tones",
+      "prompt_fragment": "editorial still-life photograph, soft natural window light, warm muted tones, lots of calm empty space",
+      "negative": ["neon", "clipart", "busy patterns", "3d render"]
+    },
+    {
+      "id": "neo_brutalism",
+      "name": "Neo-brutalism",
+      "summary": "Thick black outlines, hard offset shadows, flat saturated fills, chunky type.",
+      "use_when": ["creator", "consumer-app", "education", "events", "playful", "bold", "rebellious", "youthful", "energetic"],
+      "avoid_when": ["luxury", "health", "fintech", "enterprise", "premium", "trustworthy", "calm"],
+      "palette": {"background": "#FFF4D6", "surface": "#FFFFFF", "text": "#111111", "primary": "#FF5C35", "accent": "#3A86FF"},
+      "type": {"heading": "archivo_black", "body": "space_grotesk", "scale": 1.5},
+      "spacing": "low",
+      "panel": "brutal",
+      "image_style": "flat vector shapes, bold black outlines, hard drop shadows, no gradients",
+      "prompt_fragment": "flat graphic illustration of simple geometric shapes, bold black outlines, hard offset drop shadows, flat saturated color fills",
+      "negative": ["gradients", "soft shadows", "photorealism", "blur"]
+    },
+    {
+      "id": "frutiger_aero",
+      "name": "Frutiger Aero",
+      "summary": "Glossy, translucent, sky blues and fresh greens, nature meets technology.",
+      "use_when": ["wellness", "sustainability", "consumer-app", "health", "optimistic", "fresh", "friendly", "youthful"],
+      "avoid_when": ["enterprise", "luxury", "fintech", "rebellious", "precise"],
+      "palette": {"background": "#E6F6FF", "surface": "#FFFFFF", "text": "#0B2A4A", "primary": "#1E88E5", "accent": "#43A047"},
+      "type": {"heading": "nunito_sans", "body": "nunito_sans", "scale": 1.333},
+      "spacing": "medium",
+      "panel": "glass",
+      "image_style": "glossy translucent bubbles, bright sky, fresh green leaves, clean water, airy light",
+      "prompt_fragment": "bright airy sky with glossy translucent bubbles, fresh green leaves and clear water droplets, clean optimistic light",
+      "negative": ["dark tones", "grunge", "noise", "harsh shadows"]
+    },
+    {
+      "id": "swiss",
+      "name": "Swiss International",
+      "summary": "Strict grid, neutral grotesque type, flush-left, bold flat color fields.",
+      "use_when": ["saas", "fintech", "enterprise", "education", "events", "precise", "trustworthy", "minimal", "bold"],
+      "avoid_when": ["food", "wellness", "warm", "playful"],
+      "palette": {"background": "#F4F4F2", "surface": "#FFFFFF", "text": "#111111", "primary": "#E3000F", "accent": "#1B1B1B"},
+      "type": {"heading": "dm_sans", "body": "dm_sans", "scale": 1.5},
+      "spacing": "medium",
+      "panel": "none",
+      "image_style": "flat geometric color fields, strict grid, asymmetric composition, no texture",
+      "prompt_fragment": "swiss modernist poster composition of flat geometric shapes on a strict grid, asymmetric, large flat color areas, off-white background",
+      "negative": ["photorealism", "gradients", "ornament", "texture"]
+    }
+  ]
+}

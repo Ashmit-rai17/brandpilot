@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "fonts": [
+    {"id": "inter", "family": "Inter", "class": "neo-grotesque", "file": "Inter-Variable.ttf", "weights": {"regular": "Regular", "bold": "Bold"}},
+    {"id": "playfair_display", "family": "Playfair Display", "class": "didone", "file": "PlayfairDisplay-Variable.ttf", "weights": {"regular": "Regular", "bold": "Bold"}},
+    {"id": "archivo_black", "family": "Archivo Black", "class": "grotesque", "file": "ArchivoBlack-Regular.ttf", "weights": {"regular": null, "bold": null}},
+    {"id": "space_grotesk", "family": "Space Grotesk", "class": "grotesque", "file": "SpaceGrotesk-Variable.ttf", "weights": {"regular": "Regular", "bold": "Bold"}},
+    {"id": "nunito_sans", "family": "Nunito Sans", "class": "humanist", "file": "NunitoSans-Variable.ttf", "weights": {"regular": "Regular", "bold": "ExtraBold"}},
+    {"id": "dm_sans", "family": "DM Sans", "class": "geometric", "file": "DMSans-Variable.ttf", "weights": {"regular": "Regular", "bold": "Bold"}},
+    {"id": "ibm_plex_mono", "family": "IBM Plex Mono", "class": "monospace", "file": "IBMPlexMono-Regular.ttf", "weights": {"regular": null, "bold": null}}
+  ],
+  "spacing_margin_ratio": {"low": 0.06, "medium": 0.09, "high": 0.13}
+}
