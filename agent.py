@@ -51,6 +51,19 @@ def _ts() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
+def _chat_session(msg: ChatMessage) -> tuple[bool, str | None]:
+    """(has StartSessionContent, ASI:One chat id from the 'x-session-id' metadata if present)."""
+    start = any(isinstance(c, StartSessionContent) for c in msg.content)
+    chat_id = next((c.metadata["x-session-id"] for c in msg.content
+                    if isinstance(c, MetadataContent) and c.metadata.get("x-session-id")), None)
+    return start, chat_id
+
+
+def _is_new_chat(session: dict, start: bool, chat_id: str | None) -> bool:
+    """A new ASI:One chat starts a fresh design session; repeated StartSession for the same chat id does not."""
+    return start and (chat_id is None or chat_id != session.get("chat_session"))
+
+
 def _msg(content, end: bool = False) -> ChatMessage:
     if end:
         content = list(content) + [EndSessionContent(type="end-session")]
@@ -145,14 +158,21 @@ async def on_message(ctx: Context, sender: str, msg: ChatMessage):
     await ctx.send(sender, ChatAcknowledgement(timestamp=datetime.now(timezone.utc), acknowledged_msg_id=msg.msg_id))
     text = "\n".join(c.text for c in msg.content if isinstance(c, TextContent)).strip()
     ctx.logger.info(f"IN types={[type(c).__name__ for c in msg.content]} text={text[:600]!r} "
-                    f"msg_id={msg.msg_id} sender={sender[:16]} at={_ts()}")
+                    f"msg_id={msg.msg_id} sender={sender[:16]} ctx_session={ctx.session} at={_ts()}")
     for c in msg.content:
         if isinstance(c, MetadataContent):
             ctx.logger.info(f"IN metadata={json.dumps(c.metadata)[:600]}")
-    if not text and any(isinstance(c, StartSessionContent) for c in msg.content):
-        return
     key = f"session:{sender}"  # one design session per ASI:One user, as in the official cards example
     session = ctx.storage.get(key) or new_session()
+    start, chat_id = _chat_session(msg)
+    if _is_new_chat(session, start, chat_id):
+        ctx.logger.info(f"SESSION fresh: new chat {chat_id} (was {session.get('chat_session')}, stage {session['stage']})")
+        session = new_session()
+    if chat_id:
+        session["chat_session"] = chat_id
+    if not text and start:
+        ctx.storage.set(key, session)
+        return
     stage, t = session["stage"], time.time()
     handle_start = _ts()
     replies = await asyncio.to_thread(handle, session, text, services)

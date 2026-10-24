@@ -272,3 +272,38 @@ def test_stale_action_without_pending_ds_does_not_crash(tmp_path):
     s["pending_ds"] = None
     r = handle(s, json.dumps({"action": "approve_ds"}), svc)
     assert "went wrong" not in r[0].text
+
+
+# Live asi1.ai, 24 Oct 09:13 UTC: old session at ASSETS received a new brief and "@brandpilot restart".
+FORGE_BRIEF = ("@brandpilot I'm launching Forge, an AI productivity tool for senior developers. Calm, precise, "
+               "premium. Headline: Ship calmer, build faster.")
+TO_ASSETS = [json.dumps(BRIEF), "1", "approve"]
+
+
+def test_new_brief_at_assets_suggests_restart(tmp_path):
+    svc, s = _to(tmp_path, TO_ASSETS)
+    calls = svc.generate_image.calls
+    r = handle(s, FORGE_BRIEF, svc)
+    assert s["stage"] == ASSETS and "Looks like a new brand" in r[0].text
+    assert svc.generate_image.calls == calls and s["ds"]["version"] == 1
+
+
+def test_new_brief_at_revise_confirm_suggests_restart(tmp_path):
+    svc, s = _to(tmp_path, TO_ASSETS + ["make the colors more vibrant"])
+    r = handle(s, "We're Lumen, a budgeting app for students. Headline: Money, made simple.", svc)
+    assert s["stage"] == REVISE_CONFIRM and "Looks like a new brand" in r[0].text
+
+
+def test_revision_still_works_at_assets(tmp_path):
+    svc, s = _to(tmp_path, TO_ASSETS)
+    handle(s, "@brandpilot make the colors more vibrant", svc)
+    assert s["stage"] == REVISE_CONFIRM
+
+
+def test_mentioned_restart_and_done(tmp_path):
+    svc, s = _to(tmp_path, TO_ASSETS)
+    r = handle(s, "@brandpilot restart", svc)
+    assert s["stage"] == "BRIEF" and r[0].card_kind == "form"
+    svc, s = _to(tmp_path, TO_ASSETS)
+    handle(s, "@brandpilot done", svc)
+    assert s["stage"] == DONE

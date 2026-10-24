@@ -34,6 +34,11 @@ DONE_RE = re.compile(r"^\s*(done|finish|that's all|thats all|finished)\b", re.I)
 SOCIAL = re.compile(r"social|instagram|square post|ig post", re.I)
 STALE_ACTIONS = {"approve_ds", "reject_ds", "pick_direction", "submit_brief", "approve_patch", "cancel_patch"}
 EARLIER_CARD = re.compile(r"design system|direction", re.I)
+MENTION = re.compile(r"^\s*@\S+\s*")  # ASI:One direct mentions arrive as "@brandpilot ..." or "@agent1q... ..."
+# "I'm launching Forge, ..." / "We're Lumen, a ..." / "... Headline: ..." looks like a brand-new brief
+NEW_BRIEF = re.compile(r"^\s*(?i:i'?m|i am|we'?re|we are)\s+(?:(?i:launching|building|starting)\b|[A-Z][\w&.-]*\s*,)"
+                       r"|(?i:\bheadline\s*:)")
+NEW_BRAND_REPLY = "Looks like a new brand. Say 'restart' to start fresh, or ask for a revision to the current poster."
 
 
 @dataclass
@@ -59,7 +64,7 @@ def new_session() -> dict:
 
 
 def handle(session: dict, text: str, svc: Services) -> list[Reply]:
-    text = (text or "").strip()
+    text = MENTION.sub("", (text or "").strip())
     if not session or RESTART.match(text):
         session.clear()
         session.update(new_session())
@@ -173,6 +178,8 @@ def _on_review_ds(s, text, sel, svc):
 
 
 def _on_assets(s, text, sel, svc):
+    if not sel and NEW_BRIEF.search(text):
+        return [Reply(NEW_BRAND_REPLY)]
     ds = DesignSystem(**s["ds"])
     stale_prose = not sel and EARLIER_CARD.search(text) and (CONFIRM.search(text) or CANCEL.search(text))
     if stale_prose:
@@ -206,6 +213,8 @@ def _on_assets(s, text, sel, svc):
 
 
 def _on_revise_confirm(s, text, sel, svc):
+    if not sel and NEW_BRIEF.search(text):
+        return [Reply(NEW_BRAND_REPLY)]
     action = sel.get("action")
     old = DesignSystem(**s["ds"])
     if action in {"approve_ds", "reject_ds", "pick_direction", "submit_brief"} and s.get("pending_ds"):
