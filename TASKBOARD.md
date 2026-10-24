@@ -24,7 +24,7 @@ Times are IST. Building ends 16:30 (final building and submission), closing 17:5
 | --- | --- | --- | --- | --- | --- | --- |
 | S1 | `knowledge/references.json`: 2 verified references per style (url, name, style_id, verified_on) | Prashant | none | `python -m tests.validate_knowledge` prints OK | TODO | 40m |
 | S2 | Show one reference per direction in the carousel text | Raj | S1 | Reference name and URL appear, URL opens | TODO | 15m |
-| S3 | Contract tests: invalid palette hex, unknown font id, patch with extra key rejected | Prashant | none | pytest green | TODO | 30m |
+| S3 | Contract tests: invalid palette hex, unknown font id, patch with extra key rejected | Prashant | none | pytest green | DONE (18 passed) | 30m |
 | S4 | Demo checklist rehearsal with exact prompts | Prashant | M6 | Run completes in under 4 minutes | TODO | 15m |
 
 ## Cut if behind

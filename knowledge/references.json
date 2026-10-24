@@ -1,0 +1,52 @@
+{
+  "references": [
+    {
+      "id": "linear",
+      "name": "Linear",
+      "url": "https://linear.app",
+      "style_id": "dark_minimal",
+      "why": "near-black UI, single indigo accent, neutral sans",
+      "verified_on": "2026-10-24"
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "url": "https://vercel.com",
+      "style_id": "dark_minimal",
+      "why": "stark black and white, minimal borders, high contrast",
+      "verified_on": "2026-10-24"
+    },
+    {
+      "id": "kinfolk",
+      "name": "Kinfolk",
+      "url": "https://kinfolk.com",
+      "style_id": "editorial",
+      "why": "generous whitespace, elegant serif typography, muted tones",
+      "verified_on": "2026-10-24"
+    },
+    {
+      "id": "the_atlantic",
+      "name": "The Atlantic",
+      "url": "https://theatlantic.com",
+      "style_id": "editorial",
+      "why": "structured columns, classic editorial typography, high whitespace",
+      "verified_on": "2026-10-24"
+    },
+    {
+      "id": "gumroad",
+      "name": "Gumroad",
+      "url": "https://gumroad.com",
+      "style_id": "neo_brutalism",
+      "why": "bold unrefined borders, high saturation colors, raw typography",
+      "verified_on": "2026-10-24"
+    },
+    {
+      "id": "vitsoe",
+      "name": "Vitsoe",
+      "url": "https://vitsoe.com",
+      "style_id": "swiss",
+      "why": "strict grid, utilitarian sans-serif, high functional contrast",
+      "verified_on": "2026-10-24"
+    }
+  ]
+}
