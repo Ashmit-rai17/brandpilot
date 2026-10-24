@@ -43,6 +43,11 @@ services = Services(brain=Brain(offline=os.getenv("BRANDPILOT_OFFLINE") == "1"),
                     generate_image=generate_image, data_dir=Path(os.getenv("DATA_DIR", "data")))
 
 
+def _ts() -> str:
+    """UTC wall-clock timestamp for diagnostic log lines."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
 def _msg(content, end: bool = False) -> ChatMessage:
     if end:
         content = list(content) + [EndSessionContent(type="end-session")]
@@ -103,7 +108,8 @@ async def _send(ctx: Context, to: str, reply: Reply):
 async def on_message(ctx: Context, sender: str, msg: ChatMessage):
     await ctx.send(sender, ChatAcknowledgement(timestamp=datetime.now(timezone.utc), acknowledged_msg_id=msg.msg_id))
     text = "\n".join(c.text for c in msg.content if isinstance(c, TextContent)).strip()
-    ctx.logger.info(f"IN types={[type(c).__name__ for c in msg.content]} text={text[:600]!r}")
+    ctx.logger.info(f"IN types={[type(c).__name__ for c in msg.content]} text={text[:600]!r} "
+                    f"msg_id={msg.msg_id} sender={sender[:16]} at={_ts()}")
     for c in msg.content:
         if isinstance(c, MetadataContent):
             ctx.logger.info(f"IN metadata={json.dumps(c.metadata)[:600]}")
@@ -112,8 +118,10 @@ async def on_message(ctx: Context, sender: str, msg: ChatMessage):
     key = f"session:{sender}"  # one design session per ASI:One user, as in the official cards example
     session = ctx.storage.get(key) or new_session()
     stage, t = session["stage"], time.time()
+    handle_start = _ts()
     replies = await asyncio.to_thread(handle, session, text, services)
-    ctx.logger.info(f"FLOW {stage} -> {session['stage']} sel={parse_selection(text)} handled in {time.time() - t:.1f}s llm={services.brain.last_source}")
+    ctx.logger.info(f"FLOW {stage} -> {session['stage']} sel={parse_selection(text)} handled in {time.time() - t:.1f}s llm={services.brain.last_source} "
+                    f"msg_id={msg.msg_id} handle_start={handle_start} handle_end={_ts()}")
     ctx.storage.set(key, session)  # saved before sending, so a delivery error never loses state
     for r in replies:
         await _send(ctx, sender, r)
