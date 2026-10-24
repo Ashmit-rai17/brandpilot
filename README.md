@@ -13,7 +13,7 @@ BrandPilot is an AI brand and design director for founders without design expert
 
 | Name | Address | Agentverse profile |
 | --- | --- | --- |
-| BrandPilot | `agent1q...` (fill in after first run) | link after registration |
+| BrandPilot | `agent1qw0pqhpynjdc7hx9r0q8g9ng6yzp3cflw7wpm5kfc8j78dy9qq3qudhsf7r` | [Agentverse Profile](https://agentverse.ai/agents/details/agent1qw0pqhpynjdc7hx9r0q8g9ng6yzp3cflw7wpm5kfc8j78dy9qq3qudhsf7r/profile) · [ASI:One](https://asi1.ai/ai/brandpilot) |
 
 Protocol: Agent Chat Protocol (ACP) with `publish_manifest=True`, mailbox agent, ASI:One Interactive Cards (form, carousel, review).
 
