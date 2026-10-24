@@ -99,10 +99,10 @@ def parse_selection(text: str) -> dict:
             pass
     low = t.lower()
     sel: dict = {}
-    m = re.search(r"dir_(\d)", low)
+    m = re.search(r"dir[_ ]?(\d)", low)
     if m:
         sel = {"action": "pick_direction", "direction_id": f"dir_{m.group(1)}"}
     for action in ("approve_ds", "reject_ds", "approve_patch", "cancel_patch", "submit_brief", "pick_direction"):
-        if action in low:
+        if action in low or action.replace("_", " ") in low:
             sel.setdefault("action", action)
     return sel

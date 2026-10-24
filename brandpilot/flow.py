@@ -28,6 +28,8 @@ BRIEF, DIRECTIONS, REVIEW_DS, ASSETS, REVISE_CONFIRM, DONE = (
 RESTART = re.compile(r"^\s*(restart|start over|new brand|reset)\b", re.I)
 YES = re.compile(r"^\s*(yes|y|ok|okay|approve|approved|looks good|confirm|go|sure)\b", re.I)
 NO = re.compile(r"^\s*(no|cancel|nope|reject|back)\b", re.I)
+CONFIRM = re.compile(r"\b(confirm(ed|s)?|approv(e|ed|es|al))\b", re.I)
+CANCEL = re.compile(r"\b(cancel(l?ed|s)?|reject(ed|s)?|declin(e|ed|es))\b", re.I)
 DONE_RE = re.compile(r"^\s*(done|finish|that's all|thats all|finished)\b", re.I)
 SOCIAL = re.compile(r"social|instagram|square post|ig post", re.I)
 
@@ -94,8 +96,10 @@ def _on_brief(s, text, sel, svc):
         if sel.get("personality"):
             data["personality"] = [p.strip().lower() for p in str(sel["personality"]).split(",") if p.strip()]
         brief = Brief(**data)
-        # Let ASI1 classify industry/positioning from the filled form.
-        brief = svc.brain.extract_brief(_brief_as_text(brief), brief)
+        # Let ASI1 classify industry/positioning from the filled form. A prose forward of a form
+        # submit carries no field keys, so parse the user's text instead of discarding it.
+        has_fields = bool(set(sel) & set(cards.BRIEF_FIELDS))
+        brief = svc.brain.extract_brief(_brief_as_text(brief) if has_fields else text, brief)
     elif text and text.lower() not in {"hi", "hello", "hey", "start"}:
         brief = svc.brain.extract_brief(text, brief)
     s["brief"] = brief.model_dump()
@@ -150,11 +154,11 @@ def _on_directions(s, text, sel, svc):
 
 def _on_review_ds(s, text, sel, svc):
     action = sel.get("action")
-    if action == "reject_ds" or (not action and NO.match(text)):
+    if action == "reject_ds" or (not action and (NO.match(text) or CANCEL.search(text))):
         s["stage"] = DIRECTIONS
         dirs = [Direction(**d) for d in s["directions"]]
         return [Reply("No problem. Pick the other direction.", "carousel", cards.directions_carousel(dirs))]
-    if action == "approve_ds" or YES.match(text):
+    if action == "approve_ds" or YES.match(text) or (not action and CONFIRM.search(text)):
         s["stage"] = ASSETS
         return _make_asset(s, svc, "poster", regenerate=True, intro="Design system approved. ")
     ds = DesignSystem(**s["ds"])
@@ -190,10 +194,10 @@ def _on_assets(s, text, sel, svc):
 def _on_revise_confirm(s, text, sel, svc):
     action = sel.get("action")
     old = DesignSystem(**s["ds"])
-    if action == "cancel_patch" or (not action and NO.match(text)):
+    if action == "cancel_patch" or (not action and (NO.match(text) or CANCEL.search(text))):
         s["pending_ds"], s["stage"] = None, ASSETS
         return [Reply(f"Cancelled. Design system stays at v{old.version}.")]
-    if action == "approve_patch" or YES.match(text):
+    if action == "approve_patch" or YES.match(text) or (not action and CONFIRM.search(text)):
         new = DesignSystem(**s["pending_ds"])
         changes = diff(old, new)
         changed_keys = {k for k, _, _ in changes}

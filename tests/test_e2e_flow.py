@@ -86,3 +86,62 @@ def test_image_failure_does_not_corrupt_state(tmp_path):
         handle(s, t, svc)
     r = handle(s, "approve", svc)
     assert "failed" in r[0].text and s["ds"]["version"] == 1 and s["assets"] == {}
+
+
+# ---------- planner-narrated (prose) card clicks ----------
+
+def _svc(tmp_path):
+    return Services(brain=Brain(offline=True), generate_image=CountingImage(), data_dir=tmp_path)
+
+
+def _to(tmp_path, steps):
+    svc, s = _svc(tmp_path), new_session()
+    for t in steps:
+        handle(s, t, svc)
+    return svc, s
+
+
+def test_prose_confirm_design_system(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1"])
+    assert s["stage"] == REVIEW_DS
+    r = handle(s, "The user confirmed the design system", svc)
+    assert s["stage"] == ASSETS and r[0].image_png
+
+
+def test_prose_reject_design_system(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1"])
+    handle(s, "The user chose to reject the design system", svc)
+    assert s["stage"] == DIRECTIONS
+
+
+def test_prose_approve_patch(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1", "approve", "make the colors more vibrant"])
+    assert s["stage"] == REVISE_CONFIRM
+    handle(s, "The user approved the proposed change", svc)
+    assert s["stage"] == ASSETS and s["ds"]["version"] == 2
+
+
+def test_prose_cancel_patch(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1", "approve", "make the colors more vibrant"])
+    handle(s, "The user chose to cancel the proposed change", svc)
+    assert s["stage"] == ASSETS and s["ds"]["version"] == 1
+
+
+def test_prose_pick_direction_variants(tmp_path):
+    for text in ("The user picked direction dir_2", "The user picked dir 2"):
+        svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF)])
+        handle(s, text, svc)
+        assert s["stage"] == REVIEW_DS and s["ds"]["style_id"] == s["directions"][1]["style_id"], text
+
+
+def test_parse_selection_spaced_action():
+    from brandpilot.cards import parse_selection
+    assert parse_selection("The user clicked approve ds") == {"action": "approve_ds"}
+
+
+def test_prose_form_submit_uses_text(tmp_path):
+    svc = _svc(tmp_path)
+    s = new_session()
+    handle(s, "The user submitted the form (submit_brief).\ncompany: Forge\nproduct: AI productivity tool\n"
+              "audience: senior developers\nheadline: Ship calmer, build faster", svc)
+    assert s["stage"] == DIRECTIONS
