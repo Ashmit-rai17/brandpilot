@@ -38,3 +38,22 @@ def test_same_chat_or_plain_message_keeps_session():
 def test_start_session_without_chat_id_resets():
     start, chat_id = agent._chat_session(_msg(StartSessionContent(type="start-session"), TextContent(type="text", text=BRIEF)))
     assert agent._is_new_chat(new_session() | {"stage": "ASSETS"}, start, chat_id)
+
+
+FORGE = ("I'm launching Forge, an AI productivity tool for senior developers. Calm, precise, premium. "
+         "Headline: Ship calmer, build faster.")
+
+
+def test_duplicate_brief_is_skipped():
+    s = "agent1q0p0gmk5f3-dup-test"
+    assert agent._duplicate(s, "m1", FORGE, 1000.0) is None
+    assert agent._duplicate(s, "m1", FORGE, 1001.0) == "duplicate msg_id skipped"
+    assert agent._duplicate(s, "m2", FORGE, 1030.0) == "duplicate text skipped"   # new msg_id, same text, 30s later
+    assert agent._duplicate(s, "m3", FORGE, 1030.0 + 121) is None                 # window expired
+    assert agent._duplicate("another-sender", "m4", FORGE, 1031.0) is None        # per sender
+
+
+def test_retry_and_restart_are_never_skipped():
+    s = "agent1q-retry-test"
+    for i, t in enumerate(["retry", "retry", "@brandpilot restart", "@brandpilot restart"]):
+        assert agent._duplicate(s, f"r{i}", t, 2000.0 + i) is None

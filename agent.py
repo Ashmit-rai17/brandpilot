@@ -9,6 +9,7 @@ import base64
 import json
 import logging
 import os
+import re
 import secrets
 import time
 from datetime import datetime, timezone
@@ -62,6 +63,28 @@ def _chat_session(msg: ChatMessage) -> tuple[bool, str | None]:
 def _is_new_chat(session: dict, start: bool, chat_id: str | None) -> bool:
     """A new ASI:One chat starts a fresh design session; repeated StartSession for the same chat id does not."""
     return start and (chat_id is None or chat_id != session.get("chat_session"))
+
+
+DUP_WINDOW_S = 120
+_seen_ids: dict[str, set] = {}
+_recent_text: dict[str, dict[str, float]] = {}
+_REPEATABLE = re.compile(r"^\s*(?:@\S+\s*)?(?:restart|start over|new brand|reset|retry|try again|regenerate)\b", re.I)
+
+
+def _duplicate(sender: str, msg_id: str, text: str, now: float) -> str | None:
+    """Why this message should be skipped (repeated msg_id, or identical text within DUP_WINDOW_S), else None."""
+    ids = _seen_ids.setdefault(sender, set())
+    if msg_id in ids:
+        return "duplicate msg_id skipped"
+    ids.add(msg_id)
+    recent = _recent_text.setdefault(sender, {})
+    for t in [t for t, at in recent.items() if now - at > DUP_WINDOW_S]:
+        del recent[t]
+    if text and not _REPEATABLE.match(text):  # 'retry'/'restart' must always go through
+        if text in recent:
+            return "duplicate text skipped"
+        recent[text] = now
+    return None
 
 
 def _msg(content, end: bool = False) -> ChatMessage:
@@ -162,6 +185,10 @@ async def on_message(ctx: Context, sender: str, msg: ChatMessage):
     for c in msg.content:
         if isinstance(c, MetadataContent):
             ctx.logger.info(f"IN metadata={json.dumps(c.metadata)[:600]}")
+    dup = _duplicate(sender, str(msg.msg_id), text, time.time())
+    if dup:
+        ctx.logger.info(f"{dup}: msg_id={msg.msg_id} sender={sender[:16]} text={text[:80]!r}")
+        return
     key = f"session:{sender}"  # one design session per ASI:One user, as in the official cards example
     session = ctx.storage.get(key) or new_session()
     start, chat_id = _chat_session(msg)

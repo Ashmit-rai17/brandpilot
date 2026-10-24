@@ -37,7 +37,7 @@ EARLIER_CARD = re.compile(r"design system|direction", re.I)
 MENTION = re.compile(r"^\s*@\S+\s*")  # ASI:One direct mentions arrive as "@brandpilot ..." or "@agent1q... ..."
 # "I'm launching Forge, ..." / "We're Lumen, a ..." / "... Headline: ..." looks like a brand-new brief
 NEW_BRIEF = re.compile(r"^\s*(?i:i'?m|i am|we'?re|we are)\s+(?:(?i:launching|building|starting)\b|[A-Z][\w&.-]*\s*,)"
-                       r"|(?i:\bheadline\s*:)")
+                       r"|(?i:\b(?:headline|brand name|company|product|audience)\s*:)")
 NEW_BRAND_REPLY = "Looks like a new brand. Say 'restart' to start fresh, or ask for a revision to the current poster."
 
 

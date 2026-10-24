@@ -307,3 +307,27 @@ def test_mentioned_restart_and_done(tmp_path):
     svc, s = _to(tmp_path, TO_ASSETS)
     handle(s, "@brandpilot done", svc)
     assert s["stage"] == DONE
+
+
+FORGE_EXACT = ("I'm launching Forge, an AI productivity tool for senior developers. Calm, precise, premium. "
+               "Headline: Ship calmer, build faster.")
+KAAPI_STYLE = ("Brand name: KAAPI CULTURE\nProduct: Contemporary South Indian specialty filter coffee\n"
+               "Audience: Urban Indians aged 20-35")
+
+
+def _no_patch(*a, **k):
+    raise AssertionError("a brief must never reach write_patch")
+
+
+def test_exact_brief_at_assets_never_reaches_write_patch(tmp_path, monkeypatch):
+    for brief in (FORGE_EXACT, "@brandpilot " + FORGE_EXACT, KAAPI_STYLE):
+        svc, s = _to(tmp_path, TO_ASSETS)
+        monkeypatch.setattr(svc.brain, "write_patch", _no_patch)
+        r = handle(s, brief, svc)
+        assert s["stage"] == ASSETS and "Looks like a new brand" in r[0].text and s.get("pending_ds") is None
+
+
+def test_vibrant_at_assets_still_becomes_a_patch(tmp_path):
+    svc, s = _to(tmp_path, TO_ASSETS)
+    handle(s, "make the colors more vibrant", svc)
+    assert s["stage"] == REVISE_CONFIRM and s["pending_patch"]["saturation"] == "vibrant"
