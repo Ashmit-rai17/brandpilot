@@ -9,9 +9,9 @@ Times are IST. Building ends 16:30 (final building and submission), closing 17:5
 | M1 | Spike A: `python -m spikes.spike_a_hello` reachable in ASI:One | Raj | .env seed | Echo reply visible in ASI:One chat | DONE (agent-to-agent via mailbox; ASI:One UI check pending Raj) | 15m |
 | M2 | Spike B: `python -m spikes.spike_b_image` | Raj | ASI1 key | `data/spike_b.png` opens; note latency | DONE (200, 6-8s, upload OK) | 10m |
 | M3 | Spike C: `python -m spikes.spike_c_llm` | Raj | ASI1 key | source prints `asi1`, two valid style ids | DONE (asi1 for brief + directions) | 5m |
-| M4 | Run `agent.py`, mailbox connect, full flow in ASI:One | Raj | M1-M3 | Poster image renders in ASI:One (resource mode) | TODO | 30m |
+| M4 | Run `agent.py`, mailbox connect, full flow in ASI:One | Raj | M1-M3 | Poster image renders in ASI:One (resource mode) | AGENT SIDE DONE (2 clean mailbox runs; ResourceContent sent + downloadable by recipient). ASI:One render check pending Raj | 30m |
 | M5 | Image visibility test in a shared chat opened from another account | Raj + Prashant | M4 | Prashant sees the poster via the shared URL | TODO | 10m |
-| M6 | Fix whatever M4/M5 reveal (cards parsing, delivery) | Raj | M4 | Two clean end-to-end runs | TODO | 45m |
+| M6 | Fix whatever M4/M5 reveal (cards parsing, delivery) | Raj | M4 | Two clean end-to-end runs | IN PROGRESS (fixed: prose clicks e5d6f6e, asset 409 c7bdaf9; open: stale-card clicks from ASI:One) | 45m |
 | M7 | Agentverse profile: name, handle, README with example prompts, badges | Prashant | M4 | ASI:One search finds BrandPilot | TODO | 20m |
 | M8 | Public GitHub repo, README address filled, no `.env` committed | Prashant | M4 | Repo opens logged out | TODO | 15m |
 | M9 | Record shared-chat URL of a clean run | Raj | M6 | URL opens logged out | TODO | 10m |
@@ -43,3 +43,21 @@ Times are IST. Building ends 16:30 (final building and submission), closing 17:5
 * Vibrancy uses HSV saturation (hue and value kept). Backgrounds are reused for vibrancy and spacing revisions.
 * 5 styles: Dark Minimal, Warm Editorial, Neo-brutalism, Frutiger Aero, Swiss International.
 * Payment Protocol, landing page, live scraping, multi-agent: out of scope.
+
+## Demo script
+
+Agent: `agent1qw0pqhpynjdc7hx9r0q8g9ng6yzp3cflw7wpm5kfc8j78dy9qq3qudhsf7r` (port 8010, `IMAGE_DELIVERY=resource`).
+Times are agent reply latency through Agentverse mailboxes (live test client, run A, 24 Oct 14:22, no other traffic).
+ASI:One UI adds its own overhead; re-time in the rehearsal (S4).
+
+| Step | You send | Expect | Time |
+| --- | --- | --- | --- |
+| 1 | I'm launching Forge, an AI productivity tool for senior developers. Calm, precise, premium. Headline: Ship calmer, build faster. | Two directions carousel (Dark Minimal + one more), one ruled-out style | 9.7s |
+| 2 | Click **Choose** on Dark Minimal (or reply `1`) | Design system review card, contrast 17.6:1 | 7.1s |
+| 3 | Click **Approve and make poster** | Poster v1 image + design check 5/5 | 16.9s |
+| 4 | make the colors more vibrant | Review card: primary, accent, vibrancy changed; typography preserved | 7.6s |
+| 5 | Click **Approve and regenerate** | Poster v2, same background recolored, 5/5 | 11.7s |
+| 6 | done | CSS launch kit, session ends | 6.3s |
+| reset | restart | Fresh brief form | 5.2s |
+
+Total agent time about 64s. A second run (run B) took 1.1 to 2.6x longer per step while another ASI:One user was chatting with the agent.
