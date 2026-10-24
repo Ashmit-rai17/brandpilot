@@ -3,6 +3,7 @@ import json
 
 from brandpilot.brain import Brain
 from brandpilot.flow import ASSETS, DIRECTIONS, DONE, REVIEW_DS, REVISE_CONFIRM, Services, handle, new_session
+from brandpilot.models import Brief
 from tests.fakes import CountingImage
 
 BRIEF = {"action": "submit_brief", "company": "Forge", "product": "AI productivity tool for developers",
@@ -331,3 +332,24 @@ def test_vibrant_at_assets_still_becomes_a_patch(tmp_path):
     svc, s = _to(tmp_path, TO_ASSETS)
     handle(s, "make the colors more vibrant", svc)
     assert s["stage"] == REVISE_CONFIRM and s["pending_patch"]["saturation"] == "vibrant"
+
+
+def test_offline_brief_from_free_text():
+    b = Brain(offline=True).extract_brief(
+        "I'm launching Forge, an AI productivity tool for senior developers. Calm, precise, premium. "
+        "Headline: Ship calmer, build faster.", Brief())
+    assert (b.company, b.product, b.audience, b.headline) == (
+        "Forge", "AI productivity tool", "senior developers", "Ship calmer, build faster")
+    assert b.missing() == []
+    assert b.personality == ["calm", "precise", "premium"] and b.positioning == "premium"
+    assert b.industry == "dev-tools"
+
+    b = Brain(offline=True).extract_brief(
+        "We're Lumen, a budgeting app for students. Playful and friendly. Headline: Money, made simple.", Brief())
+    assert (b.company, b.product, b.audience, b.headline) == ("Lumen", "budgeting app", "students", "Money, made simple")
+    assert b.missing() == [] and b.personality == ["playful", "friendly"]
+
+
+def test_offline_brief_never_invents_company():
+    b = Brain(offline=True).extract_brief("I'm launching an AI tool for developers.", Brief())
+    assert b.company is None

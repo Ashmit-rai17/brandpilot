@@ -139,9 +139,32 @@ def rule_patch(request: str, ds: DesignSystem) -> Patch:
     return Patch(**{k: v for k, v in p.items() if v}, wants_font_change=font, reason="keyword rules")
 
 
+# "I'm launching Forge, an AI tool for developers" / "We're Lumen, a budgeting app for students".
+# The name must be capitalised so "I'm launching an AI tool" never becomes a company.
+_INTRO = re.compile(r"(?i:\b(?:i'm|i am|we're|we are)(?:\s+(?:launching|building|starting))?)\s+"
+                    r"([A-Z][\w&.-]*(?:\s+[A-Z][\w&.-]*)*)\s*,\s*(?i:an?)\s+([^.,]+?)\s+for\s+([^.,]+)")
+_HEADLINE = re.compile(r"(?i)\bheadline\s*:\s*(.+?)\s*$")
+_INDUSTRY = {"dev-tools": r"developer|engineer|\bdevs?\b|\bapi\b|\bsdk\b", "fintech": r"budget|bank|payment|financ"}
+_POSITIONING = ("premium", "affordable", "playful", "trustworthy")
+
+
 def _rule_brief(text: str, current: Brief) -> Brief:
-    """Minimal fallback: accept 'key: value' lines. The form card is the reliable path offline."""
+    """Minimal fallback: one-sentence intro, 'Headline: ...', vocabulary words, and 'key: value' lines.
+    The form card is the reliable path offline."""
     data = current.model_dump()
+    head = _HEADLINE.search(text)
+    if head:
+        data["headline"] = head.group(1).rstrip(".")
+        text = text[: head.start()] + "\n" + text[head.end():]
+    intro = _INTRO.search(text)
+    if intro:
+        data["company"], data["product"], data["audience"] = (g.strip() for g in intro.groups())
+    words = re.findall(r"[a-z]+", re.sub(r"(?im)^\s*avoid\s*:.*$", "", text).lower())  # 'avoid:' isn't personality
+    found = list(dict.fromkeys(w for w in words if w in vocabulary()["personality"]))
+    if found:
+        data["personality"] = found[:4]
+    data["positioning"] = next((w for w in _POSITIONING if w in words), data["positioning"])
+    data["industry"] = next((k for k, p in _INDUSTRY.items() if re.search(p, text, re.I)), data["industry"])
     for line in text.splitlines():
         if ":" in line:
             k, v = line.split(":", 1)
