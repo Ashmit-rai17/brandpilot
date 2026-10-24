@@ -225,7 +225,9 @@ def test_revision_mapping_asi1(tmp_path, monkeypatch):
     for req, field, value in REVISIONS:
         reply = {field: value or "organic natural textures"}
         monkeypatch.setattr("brandpilot.asi1.chat_json", lambda *a, _r=reply, **k: dict(_r))
-        _check(Brain(offline=False).write_patch(req, ds), field, value)
+        brain = Brain(offline=False)
+        _check(brain.write_patch(req, ds), field, value)
+        assert brain.last_source == "asi1", req
 
 
 def test_font_change_serif_rejected(tmp_path):
@@ -236,3 +238,37 @@ def test_font_change_serif_rejected(tmp_path):
     assert patch.wants_font_change
     with pytest.raises(RevisionRejected):
         apply_patch(ds, patch)
+
+
+def test_addressed_short_number_picks_direction(tmp_path):
+    addr = "@agent1qw0pqhpynjdc7hx9r0q8g9ng6yzp3cflw7wpm5kfc8j78dy9qq3qudhsf7r"
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF)])
+    handle(s, addr + " 1", svc)
+    assert s["stage"] == REVIEW_DS and s["ds"]["style_id"] == s["directions"][0]["style_id"]
+
+
+def test_direction_phrase_picks_regardless_of_length(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF)])
+    handle(s, "I'll take direction 2", svc)
+    assert s["stage"] == REVIEW_DS and s["ds"]["style_id"] == s["directions"][1]["style_id"]
+
+
+def test_revision_with_approval_words_is_not_swallowed(tmp_path):
+    for text in ("approve the design system and make it warmer",
+                 "I approve, make the colors more vibrant in this direction"):
+        svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1", "approve"])
+        handle(s, text, svc)
+        assert s["stage"] == REVISE_CONFIRM, text
+
+
+def test_background_color_requests_do_not_set_image_style(tmp_path):
+    ds = _ds_for_revisions(tmp_path)
+    for req in ("make the background more vibrant", "background to be warmer"):
+        assert Brain(offline=True).write_patch(req, ds).image_style is None, req
+
+
+def test_stale_action_without_pending_ds_does_not_crash(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1", "approve", "make the colors more vibrant"])
+    s["pending_ds"] = None
+    r = handle(s, json.dumps({"action": "approve_ds"}), svc)
+    assert "went wrong" not in r[0].text

@@ -132,7 +132,7 @@ def rule_patch(request: str, ds: DesignSystem) -> Patch:
         p["spacing"] = {"low": "medium", "medium": "high", "high": "high"}[ds.spacing]
     elif re.search(r"tighter|denser|less space", t):
         p["spacing"] = {"high": "medium", "medium": "low", "low": "low"}[ds.spacing]
-    m = re.search(r"\b(?:image|imagery|background|illustration)s?\b.*?\b(?:to|into|more)\s+(?:something\s+(?:more\s+)?)?(.+)", t)
+    m = re.search(r"\b(?:image|imagery|background|illustration)s?\b.*?\b(?:to|into)\s+something\s+(?:more\s+)?(.+)", t)
     if m:
         p["image_style"] = m.group(1).strip(" .!")
     font = bool(re.search(r"font|typeface|typography|serif", t)) and not re.search(r"keep (the )?(font|type)", t)

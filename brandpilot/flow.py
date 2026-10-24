@@ -15,7 +15,7 @@ from typing import Callable, Optional
 
 from . import cards
 from .asi1 import compile_prompt
-from .brain import Brain
+from .brain import Brain, rule_patch
 from .kb import direction_from_style, fonts, lock_design_system
 from .models import AssetRecord, Brief, DesignSystem, Direction, Patch
 from .render import compose, to_png
@@ -136,7 +136,9 @@ def _on_directions(s, text, sel, svc):
     if sel.get("direction_id"):
         pick = next((d for d in dirs if d.id == sel["direction_id"]), None)
     if pick is None:
-        m = re.search(r"\b([12])\b", text) if len(text.strip()) <= 20 else None
+        bare = re.sub(r"^\s*@\S+\s*", "", text).strip()  # drop the "@agent1q..." mention prefix
+        m = re.search(r"\b(?:option|dir(?:ection)?)\s*([12])\b", text, re.I) or (
+            re.search(r"\b([12])\b", bare) if len(bare) <= 20 else None)
         if m:
             pick = dirs[int(m.group(1)) - 1]
         else:
@@ -173,6 +175,9 @@ def _on_review_ds(s, text, sel, svc):
 def _on_assets(s, text, sel, svc):
     ds = DesignSystem(**s["ds"])
     stale_prose = not sel and EARLIER_CARD.search(text) and (CONFIRM.search(text) or CANCEL.search(text))
+    if stale_prose:
+        wish = rule_patch(text, ds)  # a real revision request riding along with approval words still counts
+        stale_prose = wish.is_empty() and not wish.wants_font_change
     if sel.get("action") in STALE_ACTIONS or stale_prose:
         return [Reply(f"That's already done: your poster uses design system v{ds.version}. "
                       "Ask for a revision, say 'social post', or 'done'.")]
@@ -203,7 +208,7 @@ def _on_assets(s, text, sel, svc):
 def _on_revise_confirm(s, text, sel, svc):
     action = sel.get("action")
     old = DesignSystem(**s["ds"])
-    if action in {"approve_ds", "reject_ds", "pick_direction", "submit_brief"}:
+    if action in {"approve_ds", "reject_ds", "pick_direction", "submit_brief"} and s.get("pending_ds"):
         new = DesignSystem(**s["pending_ds"])
         return [Reply(f"Approve or cancel the proposed change v{old.version} to v{new.version}.", "review",
                       cards.revision_review(old, new, diff(old, new), preserved(old, new)))]
