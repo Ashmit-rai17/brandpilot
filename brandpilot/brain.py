@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 from . import asi1
 from .kb import candidate_styles, styles, vocabulary
 from .models import Brief, DesignSystem, Patch
+from .variation import pick_hue_family, stable_seed
 
 log = logging.getLogger("brandpilot.brain")
 
@@ -59,15 +60,24 @@ class Brain:
         if not self.offline:
             system = (
                 "You are a brand design director. Pick exactly TWO clearly different visual styles for this brief "
-                "from the allowed list only, and explain each in one sentence that cites the brief. Return JSON: "
-                '{"directions":[{"style_id":"...","rationale":"..."},{"style_id":"...","rationale":"..."}]}'
+                "from the allowed list only, and explain each in one sentence that cites the brief. For each style, "
+                "choose hue_family from that style's allowed hue families and give a one-line hue_reason. Return JSON: "
+                '{"directions":[{"style_id":"...","rationale":"...","hue_family":"...","hue_reason":"..."}]}'
             )
             user = json.dumps({"brief": brief.model_dump(),
                                "allowed_styles": [{"id": s["id"], "name": s["name"], "summary": s["summary"],
-                                                   "use_when": s["use_when"]} for s in pool]})
+                                                   "use_when": s["use_when"],
+                                                   "hue_families": s["grammar"]["palette"]["hue_families"]} for s in pool]})
             try:
                 data = asi1.chat_json(system, user)
                 picks = [d for d in data.get("directions", []) if d.get("style_id") in ids]
+                for d in picks:
+                    allowed = styles()[d["style_id"]]["grammar"]["palette"]["hue_families"]
+                    if d.get("hue_family") not in allowed:
+                        d["hue_family"] = pick_hue_family(allowed, stable_seed(brief.company, d["style_id"], 0))
+                        d["hue_reason"] = "Seed-selected within this style's approved hue families."
+                    elif not isinstance(d.get("hue_reason"), str) or not d["hue_reason"].strip() or "\n" in d["hue_reason"]:
+                        d["hue_reason"] = "This approved hue family suits the brief's stated personality."
                 uniq = list({d["style_id"]: d for d in picks}.values())[:2]
                 if len(uniq) == 2:
                     self.last_source = "asi1"
@@ -81,7 +91,9 @@ class Brain:
         for s in pool[:2]:
             hits = sorted(tags & set(s["use_when"]))
             why = f"matches {', '.join(hits)}" if hits else "a contrasting option to compare against"
-            picks.append({"style_id": s["id"], "rationale": f"{s['summary']} Chosen because it {why}."})
+            family = pick_hue_family(s["grammar"]["palette"]["hue_families"], stable_seed(brief.company, s["id"], 0))
+            picks.append({"style_id": s["id"], "rationale": f"{s['summary']} Chosen because it {why}.",
+                          "hue_family": family, "hue_reason": "Seed-selected to stay within this style's approved hue families."})
         return {"directions": picks, "rejected": _rejection(rejected)}
 
     # ---------- revision ----------
@@ -90,7 +102,7 @@ class Brain:
             system = (
                 "Convert a design revision request into a JSON patch. Allowed keys only: "
                 'saturation ("muted"|"balanced"|"vibrant"), temperature ("warmer"|"cooler"), '
-                'spacing ("low"|"medium"|"high"), image_style (short phrase), wants_font_change (bool), '
+                'spacing ("low"|"medium"|"high"), image_style (short phrase), variation (bool), wants_font_change (bool), '
                 "reason (short). Include ONLY keys the request asks about. Never change anything else. "
                 "If the user asks to change fonts or typography, set wants_font_change true."
             )
@@ -136,7 +148,8 @@ def rule_patch(request: str, ds: DesignSystem) -> Patch:
     if m:
         p["image_style"] = m.group(1).strip(" .!")
     font = bool(re.search(r"font|typeface|typography|serif", t)) and not re.search(r"keep (the )?(font|type)", t)
-    return Patch(**{k: v for k, v in p.items() if v}, wants_font_change=font, reason="keyword rules")
+    variation = bool(re.search(r"another variation|surprise me|different palette", t))
+    return Patch(**{k: v for k, v in p.items() if v}, variation=variation, wants_font_change=font, reason="keyword rules")
 
 
 # "I'm launching Forge, an AI tool for developers" / "We're Lumen, a budgeting app for students".

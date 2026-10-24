@@ -46,6 +46,14 @@ class TypeSpec(BaseModel):
     scale: float = Field(ge=1.1, le=1.7)
 
 
+class Motif(BaseModel):
+    """The concrete, locked image direction selected from a style grammar."""
+    subject: str
+    composition: str
+    lighting: str
+    industry_hint: Optional[str] = None
+
+
 class Direction(BaseModel):
     id: str
     style_id: str
@@ -53,6 +61,11 @@ class Direction(BaseModel):
     rationale: str
     palette: Palette
     type: TypeSpec
+    seed: Optional[int] = None
+    variant: int = 0
+    layout_template: Optional[str] = None
+    motif: Optional[Motif] = None
+    hue_family: Optional[str] = None
 
 
 class DesignSystem(BaseModel):
@@ -67,6 +80,11 @@ class DesignSystem(BaseModel):
     image_style: str
     prompt_fragment: str
     negative: list[str]
+    seed: Optional[int] = None
+    variant: int = 0
+    layout_template: Optional[str] = None
+    motif: Optional[Motif] = None
+    hue_family: Optional[str] = None
     locked: list[str] = Field(default_factory=lambda: ["type"])
     history: list[dict] = Field(default_factory=list)
 
@@ -77,6 +95,7 @@ class Patch(BaseModel):
     temperature: Optional[Literal["warmer", "cooler"]] = None
     spacing: Optional[Spacing] = None
     image_style: Optional[str] = Field(default=None, max_length=160)
+    variation: bool = False
     wants_font_change: bool = False
     reason: str = ""
 
@@ -86,7 +105,7 @@ class Patch(BaseModel):
         return v.strip() if v else v
 
     def is_empty(self) -> bool:
-        return not any([self.saturation, self.temperature, self.spacing, self.image_style])
+        return not any([self.saturation, self.temperature, self.spacing, self.image_style, self.variation])
 
 
 class CheckResult(BaseModel):

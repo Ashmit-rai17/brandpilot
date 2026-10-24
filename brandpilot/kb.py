@@ -7,6 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from .models import Brief, DesignSystem, Direction, Palette, TypeSpec
+from .variation import generate_palette, hue_for_family, pick_font_pairing, pick_hue_family, pick_layout_template, pick_motif, stable_seed
 
 ROOT = Path(__file__).resolve().parent.parent
 KNOWLEDGE = ROOT / "knowledge"
@@ -54,11 +55,18 @@ def candidate_styles(brief: Brief) -> tuple[list[dict], list[tuple[dict, list[st
     return kept, rejected
 
 
-def direction_from_style(style_id: str, rationale: str, idx: int) -> Direction:
+def direction_from_style(style_id: str, rationale: str, idx: int, company: str | None = None,
+                         industry: str | None = None, variant: int = 0, hue_family: str | None = None) -> Direction:
     s = styles()[style_id]
+    grammar = s["grammar"]
+    seed = stable_seed(company, style_id, variant)
+    family = hue_family if hue_family in grammar["palette"]["hue_families"] else pick_hue_family(grammar["palette"]["hue_families"], seed)
+    hue = hue_for_family(family, seed)
+    layout = pick_layout_template(grammar, seed)
     return Direction(
         id=f"dir_{idx}", style_id=style_id, name=s["name"], rationale=rationale,
-        palette=Palette(**s["palette"]), type=TypeSpec(**s["type"]),
+        palette=generate_palette(grammar, hue, seed), type=pick_font_pairing(grammar, seed), seed=seed,
+        variant=variant, layout_template=layout["id"], motif=pick_motif(grammar, industry, seed), hue_family=family,
     )
 
 
@@ -68,6 +76,7 @@ def lock_design_system(d: Direction) -> DesignSystem:
         style_id=d.style_id, style_name=d.name, palette=d.palette, type=d.type,
         spacing=s["spacing"], panel=s["panel"], image_style=s["image_style"],
         prompt_fragment=s["prompt_fragment"], negative=s["negative"],
+        seed=d.seed, variant=d.variant, layout_template=d.layout_template, motif=d.motif, hue_family=d.hue_family,
     )
 
 

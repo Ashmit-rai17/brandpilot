@@ -10,7 +10,7 @@ import io
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 
-from .kb import contrast_ratio_lum, font_path, fonts, luminance, margin_ratio
+from .kb import contrast_ratio_lum, font_path, fonts, luminance, margin_ratio, styles
 from .models import Brief, CheckResult, DesignSystem
 
 SIZES = {"poster": (1080, 1350), "social_post": (1080, 1080)}
@@ -73,6 +73,39 @@ def worst_contrast(base: Image.Image, box, text_hex: str) -> float:
     return min(contrast_ratio_lum(tl, lo), contrast_ratio_lum(tl, hi))
 
 
+def edge_density(base: Image.Image, box) -> float:
+    """Measured fraction of high-contrast neighbour edges under a text box."""
+    x0, y0, x1, y1 = [int(v) for v in box]
+    a = np.asarray(base.crop((max(0, x0), max(0, y0), x1, y1)).convert("L"), dtype=np.float64) / 255
+    if min(a.shape, default=0) < 2:
+        return 1.0
+    edges = np.maximum(np.abs(np.diff(a, axis=0, prepend=a[:1])), np.abs(np.diff(a, axis=1, prepend=a[:, :1])))
+    return float(np.mean(edges > .12))
+
+
+def _intersects(a, b) -> bool:
+    return max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3])
+
+
+def _panel_rects(ds: DesignSystem, blocks, pad: int):
+    rects = []
+    for x0, y0, x1, y1 in blocks:
+        r = (x0 - pad, y0 - pad, x1 + pad, y1 + pad)
+        rects.append((r[0], r[1], r[2] + (max(8, pad // 2) if ds.panel == "brutal" else 0),
+                      r[3] + (max(8, pad // 2) if ds.panel == "brutal" else 0)))
+    return rects
+
+
+def _collision_failures(head_boxes, sub_boxes, brand_box, bar, panel_rects) -> list[str]:
+    text_boxes = [b[2] for b in head_boxes + sub_boxes] + [brand_box[2]]
+    failures = ["text boxes overlap" for i, a in enumerate(text_boxes) for b in text_boxes[i + 1:] if _intersects(a, b)]
+    if any(_intersects(bar, b) for b in text_boxes):
+        failures.append("accent bar intersects text")
+    if len(panel_rects) >= 2 and _intersects(panel_rects[0], panel_rects[1]):
+        failures.append("brand panel intersects headline panel")
+    return failures
+
+
 def compose(bg_png: bytes, ds: DesignSystem, brief: Brief, asset_type: str = "poster",
             bg_saturation: str | None = None) -> tuple[Image.Image, list[CheckResult], dict]:
     W, H = SIZES[asset_type]
@@ -103,18 +136,23 @@ def compose(bg_png: bytes, ds: DesignSystem, brief: Brief, asset_type: str = "po
     sub_lines = wrap((brief.product or "")[:90], sub_font, max_w)[:2]
 
     # ----- layout boxes (computed before drawing, so contrast is measured on what's under the text) -----
+    template = next((x for x in styles()[ds.style_id]["grammar"]["layout_templates"]
+                     if x["id"] == ds.layout_template), {})
+    right_align = template.get("text_align") == "right"
     x = margin
-    y = margin
+    y = margin if not template.get("text_anchor", "top_left").startswith("bottom") else round(H * .57)
     head_boxes = []
     for l in lines:
         b = head_font.getbbox(l)
-        head_boxes.append((l, (x, y), (x + b[0], y + b[1], x + b[2], y + b[3])))
+        px = W - margin - head_font.getlength(l) if right_align else x
+        head_boxes.append((l, (px, y), (px + b[0], y + b[1], px + b[2], y + b[3])))
         y += round(head_size * leading)
     y += round(sub_size * 0.9)
     sub_boxes = []
     for l in sub_lines:
         b = sub_font.getbbox(l)
-        sub_boxes.append((l, (x, y), (x + b[0], y + b[1], x + b[2], y + b[3])))
+        px = W - margin - sub_font.getlength(l) if right_align else x
+        sub_boxes.append((l, (px, y), (px + b[0], y + b[1], px + b[2], y + b[3])))
         y += round(sub_size * 1.45)
     brand = (brief.company or "")[:40]
     bsize = sub_size
@@ -122,14 +160,29 @@ def compose(bg_png: bytes, ds: DesignSystem, brief: Brief, asset_type: str = "po
         bsize -= 2
         brand_font = load_font(ds.type.body, bsize, bold=True)
     bb = brand_font.getbbox(brand)
-    by = H - margin - (bb[3] - bb[1]) - bb[1]
-    brand_box = (brand, (x, by), (x + bb[0], by + bb[1], x + bb[2], by + bb[3]))
     bar_h = max(6, round(sub_size * 0.22))
-    bar = (x, brand_box[2][1] - bar_h - round(sub_size * 0.6), x + round(sub_size * 2.2),
-           brand_box[2][1] - round(sub_size * 0.6))
-
     text_block = _union([b[2] for b in head_boxes + sub_boxes])
+
+    def place_brand(top: bool):
+        brand_x = W - margin - brand_font.getlength(brand) if right_align else x
+        by = margin - bb[1] if top else H - margin - (bb[3] - bb[1]) - bb[1]
+        box = (brand, (brand_x, by), (brand_x + bb[0], by + bb[1], brand_x + bb[2], by + bb[3]))
+        if top:
+            accent = (brand_x, box[2][3] + round(sub_size * .55), brand_x + round(sub_size * 2.2),
+                      box[2][3] + round(sub_size * .55) + bar_h)
+        else:
+            accent = (brand_x, box[2][1] - bar_h - round(sub_size * .6), brand_x + round(sub_size * 2.2),
+                      box[2][1] - round(sub_size * .6))
+        return box, accent
+
+    # Bottom layouts reserve the opposite edge, keeping a body-line-height gap from the text block.
+    brand_box, bar = place_brand(template.get("text_anchor", "top_left").startswith("bottom"))
     bottom_block = _union([brand_box[2], bar])
+    repaired = False
+    if _collision_failures(head_boxes, sub_boxes, brand_box, bar, []):
+        brand_box, bar = place_brand(not template.get("text_anchor", "top_left").startswith("bottom"))
+        bottom_block = _union([brand_box[2], bar])
+        repaired = True
 
     def pick_text_color(base_img):
         options = [pal.text, pal.background]
@@ -139,10 +192,21 @@ def compose(bg_png: bytes, ds: DesignSystem, brief: Brief, asset_type: str = "po
     base = bg.copy()
     panel_used = ds.panel != "none"
     score, text_color = pick_text_color(base)
-    if panel_used or score < 4.5:
+    text_boxes_without_brand = [b[2] for b in head_boxes + sub_boxes]
+    busyness = max([edge_density(bg, b) for b in text_boxes_without_brand] or [0])
+    # A non-panel layout gets a fallback panel when either measured contrast or local edge density fails.
+    if panel_used or score < 4.5 or busyness > .12:
         panel_used = True
+        panel_rects = _panel_rects(ds, [text_block, bottom_block], round(sub_size * .9))
+        if _collision_failures(head_boxes, sub_boxes, brand_box, bar, panel_rects) and not repaired:
+            # One deterministic repair: move the identity block to the opposite vertical edge.
+            brand_box, bar = place_brand(not template.get("text_anchor", "top_left").startswith("bottom"))
+            bottom_block = _union([brand_box[2], bar])
+            repaired = True
         base = _draw_panels(bg, ds, [text_block, bottom_block], pad=round(sub_size * 0.9))
         score, text_color = pick_text_color(base)
+    panel_rects = _panel_rects(ds, [text_block, bottom_block], round(sub_size * .9)) if panel_used else []
+    collision_failures = _collision_failures(head_boxes, sub_boxes, brand_box, bar, panel_rects)
 
     # ----- draw -----
     out = base.copy()
@@ -167,6 +231,12 @@ def compose(bg_png: bytes, ds: DesignSystem, brief: Brief, asset_type: str = "po
                     passed=head_c >= 3.0, note="worst case vs 5th/95th percentile of pixels under the text"),
         CheckResult(name="Body text contrast", value=f"{sub_c:.1f}:1" if sub_boxes else "n/a",
                     threshold=">= 4.5:1 (WCAG AA)", passed=sub_c >= 4.5),
+        CheckResult(name="Text busyness", value="protected by panel" if panel_used else f"{busyness:.3f}",
+                    threshold="<= 0.120 edge density when unpanelled", passed=panel_used or busyness <= .12,
+                    note="measured under every unpanelled text line"),
+        CheckResult(name="Layout collisions", value="none" if not collision_failures else "; ".join(collision_failures),
+                    threshold="no text, accent-bar, or identity-panel intersections", passed=not collision_failures,
+                    note="measured from rendered text and panel bounding boxes"),
         CheckResult(name="Margin", value=f"{min_edge}px", threshold=f">= {margin}px ({ds.spacing} spacing)",
                     passed=min_edge >= margin - 1),
         CheckResult(name="Type scale", value=f"{head_size}px / {sub_size}px = {eff_scale:.2f} per step",
@@ -176,7 +246,10 @@ def compose(bg_png: bytes, ds: DesignSystem, brief: Brief, asset_type: str = "po
                     passed=len(families) <= 2),
     ]
     layout = {"size": [W, H], "margin": margin, "head_size": head_size, "sub_size": sub_size,
-              "lines": lines, "text_color": text_color, "panel": panel_used}
+              "lines": lines, "text_color": text_color, "panel": panel_used, "layout_template": ds.layout_template,
+              "collisions": collision_failures, "busyness": busyness, "collision_repaired": repaired,
+              "headline_boxes": [b[2] for b in head_boxes], "subline_boxes": [b[2] for b in sub_boxes],
+              "brand_box": brand_box[2], "accent_bar": bar, "panel_boxes": panel_rects}
     return out, checks, layout
 
 

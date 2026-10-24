@@ -107,10 +107,19 @@ def compile_prompt(ds, asset_type: str) -> str:
     """Deterministic template. The LLM never paraphrases the design system."""
     pal = ds.palette
     shape = "vertical 4:5 poster background" if asset_type == "poster" else "square 1:1 social post background"
+    from .kb import styles
+    template = next((x for x in styles()[ds.style_id]["grammar"]["layout_templates"]
+                     if x["id"] == ds.layout_template), None)
+    copy_space = (template or {}).get("copy_space", "top")
+    motif = ds.motif
+    motif_instruction = ""
+    if motif:
+        hint = f", {motif.industry_hint}" if motif.industry_hint else ""
+        motif_instruction = f" Locked motif: {motif.subject}, {motif.composition}, {motif.lighting}{hint}."
     return (
-        f"{shape}. {ds.prompt_fragment}. Image style: {ds.image_style}. "
+        f"{shape}. {ds.prompt_fragment}. Image style: {ds.image_style}.{motif_instruction} "
         f"Color palette strictly limited to {pal.background}, {pal.surface}, {pal.primary} and {pal.accent}. "
-        f"Keep the top half calm and uncluttered with plenty of negative space for a headline. "
+        f"Keep the {copy_space} calm and uncluttered with plenty of negative space for copy. "
         f"Absolutely no text, no letters, no words, no numbers, no logos, no watermarks. "
         f"Avoid: {', '.join(ds.negative)}."
     )

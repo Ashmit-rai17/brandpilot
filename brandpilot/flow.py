@@ -176,14 +176,17 @@ def _on_brief(s, text, sel, svc):
 
 def _propose_directions(s, brief, svc):
     picked = svc.brain.choose_directions(brief)
-    dirs = [direction_from_style(d["style_id"], d["rationale"], i + 1) for i, d in enumerate(picked["directions"])]
+    dirs = [direction_from_style(d["style_id"], d["rationale"], i + 1, company=brief.company,
+                                 industry=brief.industry, hue_family=d.get("hue_family"))
+            for i, d in enumerate(picked["directions"])]
     s["directions"] = [d.model_dump() for d in dirs]
     s["rejected"] = picked.get("rejected")
     s["stage"] = DIRECTIONS
     lines = [f"Here are two directions for {brief.company}:"]
     for i, d in enumerate(dirs, 1):
+        source = picked["directions"][i - 1]
         lines.append(f"{i}. {d.name} ({fonts()[d.type.heading]['family']} + {fonts()[d.type.body]['family']}, "
-                     f"primary {d.palette.primary}): {d.rationale}")
+                     f"primary {d.palette.primary}): {d.rationale} Hue: {d.hue_family} — {source.get('hue_reason', '')}")
     if s["rejected"]:
         r = s["rejected"]
         lines.append(f"Ruled out: {r['name']}, because its {r['reason']}.")
@@ -269,7 +272,8 @@ def _on_assets(s, text, sel, svc):
 
 def _propose(s, ds, patch):
     try:
-        new = apply_patch(ds, patch)
+        brief = Brief(**s["brief"])
+        new = apply_patch(ds, patch, company=brief.company, industry=brief.industry)
     except RevisionRejected as e:
         return [Reply(f"{e} Try something like 'make the colors more vibrant' or 'more breathing room'.")]
     changes = diff(ds, new)
@@ -306,11 +310,11 @@ def _on_revise_confirm(s, text, sel, svc):
         log.info("revision v%s -> v%s changed=%s", old.version, new.version, changes)
         s["ds"], s["pending_ds"], s["stage"] = new.model_dump(), None, ASSETS
         # Color vibrancy and spacing changes reuse the same background, so composition is preserved.
-        regenerate = bool(changed_keys & {"image_style"}) or (
+        regenerate = bool(changed_keys & {"image_style", "layout_template", "motif", "seed", "variant", "hue_family"}) or (
             bool(changed_keys & {"palette.primary", "palette.accent"}) and "saturation" not in changed_keys)
         asset = "poster" if "poster" in s["assets"] else next(iter(s["assets"]), "poster")
         kept = [LABELS.get(k, k) for k in ("type.heading", "type.body", "type.scale", "spacing",
-                                          "palette.text", "palette.background", "image_style")
+                                          "palette.text", "palette.background", "image_style", "seed", "motif", "layout_template")
                 if k not in changed_keys]
         intro = (f"v{new.version} approved. Changed: {', '.join(LABELS.get(k, k) for k in sorted(changed_keys))}. "
                  f"Preserved: {', '.join(kept)}. "

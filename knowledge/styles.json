@@ -17,7 +17,15 @@
       "panel": "none",
       "image_style": "abstract soft light gradients and subtle glow on a dark field, cinematic, high-end",
       "prompt_fragment": "minimal dark abstract composition, deep near-black background, a single soft luminous glow, smooth gradients",
-      "negative": ["clutter", "bright backgrounds", "cartoon", "clipart"]
+      "negative": ["clutter", "bright backgrounds", "cartoon", "clipart"],
+      "grammar": {
+        "palette": {"background_lightness": [6, 14], "background_saturation": [10, 35], "text_lightness": [92, 98], "primary_saturation": [60, 88], "accent_saturation": [48, 78], "harmony_schemes": ["analogous", "complementary", "split-complementary"], "hue_families": ["indigo", "violet", "blue", "teal"]},
+        "heading_classes": ["neo-grotesque", "grotesque", "geometric"],
+        "font_pairings": [{"id": "inter_mono", "type": {"heading": "inter", "body": "ibm_plex_mono", "scale": 1.333}}, {"id": "space_inter", "type": {"heading": "space_grotesk", "body": "inter", "scale": 1.333}}, {"id": "dm_inter", "type": {"heading": "dm_sans", "body": "inter", "scale": 1.333}}],
+        "layout_invariants": {"text_align": "left"},
+        "layout_templates": [{"id": "left_glow", "text_anchor": "top_left", "image_anchor": "right", "copy_space": "left half", "text_align": "left", "panel": "none"}, {"id": "bottom_edge", "text_anchor": "bottom_left", "image_anchor": "top_right", "copy_space": "lower third", "text_align": "left", "panel": "none"}, {"id": "stacked_left", "text_anchor": "top_left", "image_anchor": "bottom_right", "copy_space": "top", "text_align": "left", "panel": "none"}],
+        "image_motifs": {"subjects": ["luminous interface forms", "precision light trails", "abstract data contours"], "compositions": ["asymmetric close crop", "single focal object", "layered depth"], "lighting": ["cinematic rim light", "soft electric glow", "subtle volumetric haze"], "industry_hints": {"dev-tools": ["terminal-like geometry"], "saas": ["connected system nodes"], "enterprise": ["calm architectural forms"]}}
+      }
     },
     {
       "id": "editorial",
@@ -31,7 +39,15 @@
       "panel": "none",
       "image_style": "natural light, soft film grain, still-life photography, muted warm tones",
       "prompt_fragment": "editorial still-life photograph, soft natural window light, warm muted tones, lots of calm empty space",
-      "negative": ["neon", "clipart", "busy patterns", "3d render"]
+      "negative": ["neon", "clipart", "busy patterns", "3d render"],
+      "grammar": {
+        "palette": {"background_lightness": [88, 97], "background_saturation": [8, 25], "text_lightness": [8, 18], "primary_saturation": [45, 76], "accent_saturation": [35, 68], "harmony_schemes": ["analogous", "complementary", "monochrome"], "hue_families": ["rust", "terracotta", "plum", "olive"]},
+        "heading_classes": ["serif", "didone"],
+        "font_pairings": [{"id": "playfair_inter", "type": {"heading": "playfair_display", "body": "inter", "scale": 1.5}}, {"id": "fraunces_inter", "type": {"heading": "fraunces", "body": "inter", "scale": 1.5}}, {"id": "dmserif_dm", "type": {"heading": "dm_serif_display", "body": "dm_sans", "scale": 1.5}}],
+        "layout_invariants": {},
+        "layout_templates": [{"id": "editorial_top", "text_anchor": "top_left", "image_anchor": "bottom_right", "copy_space": "top", "text_align": "left", "panel": "none"}, {"id": "editorial_lower", "text_anchor": "bottom_left", "image_anchor": "top_right", "copy_space": "lower third", "text_align": "left", "panel": "none"}, {"id": "editorial_right", "text_anchor": "top_right", "image_anchor": "left", "copy_space": "right half", "text_align": "right", "panel": "none"}],
+        "image_motifs": {"subjects": ["considered still life", "craft material", "quiet botanical object"], "compositions": ["editorial negative space", "tabletop crop", "portrait still life"], "lighting": ["soft window light", "overcast daylight", "warm late-afternoon light"], "industry_hints": {"food": ["seasonal ingredients"], "d2c": ["tactile product detail"], "luxury": ["refined material study"], "media": ["printed editorial object"]}}
+      }
     },
     {
       "id": "neo_brutalism",
@@ -45,7 +61,15 @@
       "panel": "brutal",
       "image_style": "flat vector shapes, bold black outlines, hard drop shadows, no gradients",
       "prompt_fragment": "flat graphic illustration of simple geometric shapes, bold black outlines, hard offset drop shadows, flat saturated color fills",
-      "negative": ["gradients", "soft shadows", "photorealism", "blur"]
+      "negative": ["gradients", "soft shadows", "photorealism", "blur"],
+      "grammar": {
+        "palette": {"background_lightness": [88, 97], "background_saturation": [25, 55], "text_lightness": [4, 10], "primary_saturation": [75, 100], "accent_saturation": [65, 100], "harmony_schemes": ["analogous", "complementary", "split-complementary"], "hue_families": ["red", "orange", "yellow", "blue", "violet"]},
+        "heading_classes": ["grotesque", "grotesque_display"],
+        "font_pairings": [{"id": "archivo_space", "type": {"heading": "archivo_black", "body": "space_grotesk", "scale": 1.5}}, {"id": "bricolage_dm", "type": {"heading": "bricolage_grotesque", "body": "dm_sans", "scale": 1.5}}, {"id": "bricolage_mono", "type": {"heading": "bricolage_grotesque", "body": "ibm_plex_mono", "scale": 1.5}}],
+        "layout_invariants": {"panel": "brutal"},
+        "layout_templates": [{"id": "brutal_top", "text_anchor": "top_left", "image_anchor": "bottom_right", "copy_space": "top", "text_align": "left", "panel": "brutal"}, {"id": "brutal_lower", "text_anchor": "bottom_left", "image_anchor": "top_right", "copy_space": "lower third", "text_align": "left", "panel": "brutal"}, {"id": "brutal_right", "text_anchor": "top_right", "image_anchor": "left", "copy_space": "right half", "text_align": "right", "panel": "brutal"}],
+        "image_motifs": {"subjects": ["chunky mascot object", "bold learning symbol", "stacked geometric sticker"], "compositions": ["off-kilter collage", "oversized crop", "graphic poster stack"], "lighting": ["flat color", "hard offset shadow", "high-key graphic light"], "industry_hints": {"creator": ["creator tools"], "education": ["playful learning objects"], "events": ["festival symbols"], "consumer-app": ["expressive app iconography"]}}
+      }
     },
     {
       "id": "frutiger_aero",
@@ -59,7 +83,15 @@
       "panel": "glass",
       "image_style": "glossy translucent bubbles, bright sky, fresh green leaves, clean water, airy light",
       "prompt_fragment": "bright airy sky with glossy translucent bubbles, fresh green leaves and clear water droplets, clean optimistic light",
-      "negative": ["dark tones", "grunge", "noise", "harsh shadows"]
+      "negative": ["dark tones", "grunge", "noise", "harsh shadows"],
+      "grammar": {
+        "palette": {"background_lightness": [87, 97], "background_saturation": [22, 48], "text_lightness": [8, 20], "primary_saturation": [58, 85], "accent_saturation": [48, 80], "harmony_schemes": ["analogous"], "hue_families": ["sky", "cyan", "teal", "green"]},
+        "heading_classes": ["humanist"],
+        "font_pairings": [{"id": "nunito_inter", "type": {"heading": "nunito_sans", "body": "inter", "scale": 1.333}}, {"id": "nunito_dm", "type": {"heading": "nunito_sans", "body": "dm_sans", "scale": 1.333}}],
+        "layout_invariants": {"panel": "glass"},
+        "layout_templates": [{"id": "aero_top", "text_anchor": "top_left", "image_anchor": "bottom_right", "copy_space": "top", "text_align": "left", "panel": "glass"}, {"id": "aero_lower", "text_anchor": "bottom_left", "image_anchor": "top_right", "copy_space": "lower third", "text_align": "left", "panel": "glass"}, {"id": "aero_left", "text_anchor": "top_left", "image_anchor": "right", "copy_space": "left half", "text_align": "left", "panel": "glass"}],
+        "image_motifs": {"subjects": ["water droplets", "fresh leaf", "translucent bubble"], "compositions": ["airy landscape", "floating close-up", "clean horizon"], "lighting": ["bright sky light", "fresh morning light", "soft translucent glow"], "industry_hints": {"wellness": ["hydration and calm"], "sustainability": ["clean ecosystem"], "health": ["gentle vitality"], "consumer-app": ["friendly digital nature"]}}
+      }
     },
     {
       "id": "swiss",
@@ -73,7 +105,15 @@
       "panel": "none",
       "image_style": "flat geometric color fields, strict grid, asymmetric composition, no texture",
       "prompt_fragment": "swiss modernist poster composition of flat geometric shapes on a strict grid, asymmetric, large flat color areas, off-white background",
-      "negative": ["photorealism", "gradients", "ornament", "texture"]
+      "negative": ["photorealism", "gradients", "ornament", "texture"],
+      "grammar": {
+        "palette": {"background_lightness": [92, 98], "background_saturation": [0, 8], "text_lightness": [5, 12], "primary_saturation": [70, 100], "accent_saturation": [0, 8], "harmony_schemes": ["analogous", "complementary", "split-complementary"], "hue_families": ["red", "cobalt", "yellow", "orange"], "fixed_accent": "near_black"},
+        "heading_classes": ["neo-grotesque", "geometric"],
+        "font_pairings": [{"id": "dm_inter", "type": {"heading": "dm_sans", "body": "inter", "scale": 1.5}}, {"id": "inter_dm", "type": {"heading": "inter", "body": "dm_sans", "scale": 1.5}}, {"id": "dm_mono", "type": {"heading": "dm_sans", "body": "ibm_plex_mono", "scale": 1.5}}],
+        "layout_invariants": {"text_align": "left"},
+        "layout_templates": [{"id": "swiss_top", "text_anchor": "top_left", "image_anchor": "bottom_right", "copy_space": "top", "text_align": "left", "panel": "none"}, {"id": "swiss_lower", "text_anchor": "bottom_left", "image_anchor": "top_right", "copy_space": "lower third", "text_align": "left", "panel": "none"}, {"id": "swiss_left", "text_anchor": "top_left", "image_anchor": "right", "copy_space": "left half", "text_align": "left", "panel": "none"}],
+        "image_motifs": {"subjects": ["flat geometric field", "typographic abstract block", "modular grid object"], "compositions": ["strict asymmetric grid", "bold cropped field", "modular alignment"], "lighting": ["flat even light", "print-like light", "shadowless color"], "industry_hints": {"saas": ["system modules"], "fintech": ["precise ledger geometry"], "enterprise": ["structured information field"], "education": ["clear learning grid"]}}
+      }
     }
   ]
 }

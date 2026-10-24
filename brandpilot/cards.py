@@ -69,6 +69,8 @@ def ds_review(ds: DesignSystem, title: str = "Approve your design system") -> di
         {"label": "Style", "value": ds.style_name},
         {"label": "Palette", "value": f"bg {p.background}, text {p.text}, primary {p.primary}, accent {p.accent}"},
         {"label": "Typography", "value": f"{fonts()[ds.type.heading]['family']} / {fonts()[ds.type.body]['family']}, scale {ds.type.scale}"},
+        {"label": "Variation", "value": f"#{ds.variant}, seed {ds.seed}, {ds.hue_family or 'default'} hue, {ds.layout_template or 'default'}"},
+        {"label": "Motif", "value": ds.motif.subject if ds.motif else "default"},
         {"label": "Spacing", "value": ds.spacing},
         {"label": "Imagery", "value": ds.image_style[:90]},
         {"label": "Locked", "value": ", ".join(ds.locked)},
@@ -83,7 +85,7 @@ def revision_review(old: DesignSystem, new: DesignSystem, changes, kept_keys) ->
     rows = [{"label": f"{LABELS.get(k, k)} (changed)", "value": f"{a} to {b}"} for k, a, b in changes]
     rows.append({"label": "Typography (preserved)",
                  "value": f"{fonts()[old.type.heading]['family']} / {fonts()[old.type.body]['family']}"})
-    for k in ("spacing", "palette.text", "palette.background", "image_style"):
+    for k in ("spacing", "palette.text", "palette.background", "image_style", "seed", "motif", "layout_template"):
         if k in kept_keys and k not in {c[0] for c in changes}:
             rows.append({"label": f"{LABELS.get(k, k)} (preserved)", "value": str(_get(old, k))[:60]})
     return {"title": f"Proposed change: v{old.version} to v{new.version}", "summary_rows": rows,

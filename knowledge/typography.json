@@ -7,7 +7,10 @@
     {"id": "space_grotesk", "family": "Space Grotesk", "class": "grotesque", "file": "SpaceGrotesk-Variable.ttf", "weights": {"regular": "Regular", "bold": "Bold"}},
     {"id": "nunito_sans", "family": "Nunito Sans", "class": "humanist", "file": "NunitoSans-Variable.ttf", "weights": {"regular": "Regular", "bold": "ExtraBold"}},
     {"id": "dm_sans", "family": "DM Sans", "class": "geometric", "file": "DMSans-Variable.ttf", "weights": {"regular": "Regular", "bold": "Bold"}},
-    {"id": "ibm_plex_mono", "family": "IBM Plex Mono", "class": "monospace", "file": "IBMPlexMono-Regular.ttf", "weights": {"regular": null, "bold": null}}
+    {"id": "ibm_plex_mono", "family": "IBM Plex Mono", "class": "monospace", "file": "IBMPlexMono-Regular.ttf", "weights": {"regular": null, "bold": null}},
+    {"id": "fraunces", "family": "Fraunces", "class": "serif", "file": "Fraunces-Variable.ttf", "weights": {"regular": "Regular", "bold": "Bold"}},
+    {"id": "dm_serif_display", "family": "DM Serif Display", "class": "didone", "file": "DMSerifDisplay-Regular.ttf", "weights": {"regular": null, "bold": null}},
+    {"id": "bricolage_grotesque", "family": "Bricolage Grotesque", "class": "grotesque_display", "file": "BricolageGrotesque-Variable.ttf", "weights": {"regular": "Regular", "bold": "Bold"}}
   ],
   "spacing_margin_ratio": {"low": 0.06, "medium": 0.09, "high": 0.13}
 }
