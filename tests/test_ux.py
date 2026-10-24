@@ -185,3 +185,26 @@ def test_suggestions_never_include_noop(tmp_path):
     assert all(x["payload"] != {"temperature": "warmer"} for x in _suggestions(warmed, s))
     s["assets"]["social_post"] = s["assets"]["poster"]
     assert _suggestions(ds, s)[-1]["kind"] == "done"
+
+
+def test_suggestions_never_undo_the_last_approved_change(tmp_path):
+    svc, s = _to(tmp_path, TO_ASSETS)
+    assert s["suggestions"][0]["payload"] == {"saturation": "vibrant"}
+    handle(s, "1", svc)
+    handle(s, "approve", svc)
+    assert s["ds"]["version"] == 2 and s["ds"]["saturation"] == "vibrant"
+    payloads = [x["payload"] for x in s["suggestions"]]
+    assert 2 <= len(payloads) <= 3 and not any("saturation" in p for p in payloads)
+    assert {"temperature": "warmer"} in payloads
+
+
+def test_cancel_of_suggested_revision_reoffers_suggestions(tmp_path):
+    svc, s = _to(tmp_path, TO_ASSETS)
+    second = s["suggestions"][1]
+    handle(s, "1", svc)
+    r = handle(s, "cancel", svc)
+    assert s["stage"] == ASSETS and s["ds"]["version"] == 1 and r[0].card_kind == "carousel"
+    assert "2. " + second["label"] in r[0].text
+    r = handle(s, "2", svc)
+    assert s["stage"] == REVISE_CONFIRM and r[0].card_kind == "review"
+    assert {k: v for k, v in s["pending_patch"].items() if k in second["payload"]} == second["payload"]

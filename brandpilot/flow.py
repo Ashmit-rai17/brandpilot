@@ -259,6 +259,10 @@ def _on_revise_confirm(s, text, sel, svc):
                       cards.revision_review(old, new, diff(old, new), preserved(old, new)))]
     if action == "cancel_patch" or (not action and (NO.match(text) or CANCEL.search(text))):
         s["pending_ds"], s["stage"] = None, ASSETS
+        if (s.get("pending_patch") or {}).get("reason") == "suggestion":  # keep the list the user was reading
+            lines, card = _offer(s, old)
+            return [Reply(f"Cancelled. Design system stays at v{old.version}. Other options:\n{lines}",
+                          "carousel", card)]
         return [Reply(f"Cancelled. Design system stays at v{old.version}.")]
     if action == "approve_patch" or YES.match(text) or (not action and CONFIRM.search(text)):
         new = DesignSystem(**s["pending_ds"])
@@ -295,8 +299,11 @@ def _suggestions(ds: DesignSystem, s) -> list[dict]:
              else ({"spacing": "medium"}, "Tighten the spacing a little")]
     if not any("temperature" in h.get("patch", {}) for h in ds.history):
         cands.append(({"temperature": "warmer"}, "Warm up the palette"))
+    last = ds.history[-1].get("patch", {}) if ds.history else {}
     out = []
     for payload, label in cands:
+        if set(payload) & set(last):
+            continue  # never offer to undo (or redo) the change the user just approved
         try:
             changed = diff(ds, apply_patch(ds, Patch(**payload)))
         except RevisionRejected:
