@@ -26,6 +26,8 @@ log = logging.getLogger("brandpilot.flow")
 BRIEF, DIRECTIONS, REVIEW_DS, ASSETS, REVISE_CONFIRM, DONE = (
     "BRIEF", "DIRECTIONS", "REVIEW_DS", "ASSETS", "REVISE_CONFIRM", "DONE")
 RESTART = re.compile(r"^\s*(restart|start over|new brand|reset)\b", re.I)
+RESTART_ANY = re.compile(r"\b(restart|start over)\b", re.I)  # "please restart" / "can we start over?"
+RETRY = re.compile(r"^\s*(retry|try again|regenerate)\b", re.I)
 YES = re.compile(r"^\s*(yes|y|ok|okay|approve|approved|looks good|confirm|go|sure)\b", re.I)
 NO = re.compile(r"^\s*(no|cancel|nope|reject|back)\b", re.I)
 CONFIRM = re.compile(r"\b(confirm(ed|s)?|approv(e|ed|es|al))\b", re.I)
@@ -75,12 +77,45 @@ def new_session() -> dict:
             "pending_ds": None, "assets": {}, "rejected": None, "suggestions": []}
 
 
+def is_restart(text: str) -> bool:
+    """'restart' at the start, or 'restart'/'start over' anywhere in a short message (under 25 words)."""
+    if RESTART.match(text):
+        return True
+    if len(text.split()) < 25 and RESTART_ANY.search(text):
+        log.info("restart detected inside message: %r", text[:80])
+        return True
+    return False
+
+
+def is_long_action(session: dict, text: str) -> bool:
+    """True when handling this message may generate an image (approve, approve revision, social post, retry)."""
+    text = MENTION.sub("", (text or "").strip())
+    stage, sel = session.get("stage"), cards.parse_selection(text)
+    action = sel.get("action")
+    if action:
+        if action == "apply_suggestion":
+            pick = next((x for x in session.get("suggestions") or [] if x["id"] == sel.get("suggestion_id")), None)
+            return bool(pick and pick["kind"] == "social_post")
+        return (stage, action) in {(REVIEW_DS, "approve_ds"), (REVISE_CONFIRM, "approve_patch")}
+    agrees = (YES.match(text) or CONFIRM.search(text)) and not (NO.match(text) or CANCEL.search(text))
+    if stage in (REVIEW_DS, REVISE_CONFIRM):
+        return bool(agrees)
+    if stage == ASSETS:
+        pending = session.get("suggestions") or []
+        n = NUMBER.match(text)
+        pick = pending[int(n.group(1)) - 1] if n and int(n.group(1)) <= len(pending) else (
+            pending[0] if len(pending) == 1 and ACCEPT.match(text) else None)
+        return bool(SOCIAL.search(text) or RETRY.match(text) or (pick and pick["kind"] == "social_post"))
+    return False
+
+
 def handle(session: dict, text: str, svc: Services) -> list[Reply]:
     text = MENTION.sub("", (text or "").strip())
-    if not session or RESTART.match(text):
+    restart = is_restart(text)
+    if not session or restart:
         session.clear()
         session.update(new_session())
-        if RESTART.match(text):
+        if restart:
             return [Reply("Starting fresh. Tell me about your company, product, audience, and a launch headline.",
                           "form", cards.brief_form(Brief()))]
     stage = session["stage"]
@@ -219,7 +254,7 @@ def _on_assets(s, text, sel, svc):
                       "Ask for a revision, say 'social post', or 'done'.")]
     if DONE_RE.match(text):
         return _finish(s, ds)
-    if re.match(r"^\s*(retry|try again|regenerate)\b", text, re.I):
+    if RETRY.match(text):
         asset = next(reversed(s["assets"]), "poster") if s["assets"] else "poster"
         return _make_asset(s, svc, asset, regenerate=True, intro="")
     if SOCIAL.search(text):
@@ -342,8 +377,11 @@ def _on_suggestion(s, text, sel, svc):
             return [Reply(f"Which one? Reply {_choices(len(pending))}.")]
         elif ACCEPT.match(text):
             pick = pending[0]
-        else:
-            return None
+        else:  # planner-narrated click: "The user chose 'Make a matching social post'"
+            low = text.lower()
+            pick = next((x for x in pending if x["label"].lower() in low), None)
+            if pick is None:
+                return None
     elif stage == ASSETS and not sel and ACCEPT.match(text):
         return [Reply(f"There's nothing waiting for a yes right now. Next: {_next_step(s)}")]
     else:

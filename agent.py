@@ -30,7 +30,7 @@ from brandpilot.asi1 import generate_image  # noqa: E402
 from brandpilot.brain import Brain  # noqa: E402
 from brandpilot.cards import parse_selection  # noqa: E402
 from brandpilot.naming import asset_name  # noqa: E402
-from brandpilot.flow import Reply, Services, handle, new_session  # noqa: E402
+from brandpilot.flow import Reply, Services, handle, is_long_action, new_session  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 SEED = os.getenv("AGENT_SEED") or secrets.token_hex(16)
@@ -58,6 +58,16 @@ def _chat_session(msg: ChatMessage) -> tuple[bool, str | None]:
     chat_id = next((c.metadata["x-session-id"] for c in msg.content
                     if isinstance(c, MetadataContent) and c.metadata.get("x-session-id")), None)
     return start, chat_id
+
+
+def _ignore_reason(msg: ChatMessage, text: str) -> str | None:
+    """Messages that are not user input. Seen live: ASI:One streams its own assistant reply to us as
+    [TextContent, MetadataContent{"index": ...}] chunks followed by bare EndStreamContent."""
+    if any(isinstance(c, MetadataContent) and "index" in c.metadata for c in msg.content):
+        return "ASI:One stream chunk ignored"
+    if not text and not any(isinstance(c, StartSessionContent) for c in msg.content):
+        return "message without text ignored"
+    return None
 
 
 def _is_new_chat(session: dict, start: bool, chat_id: str | None) -> bool:
@@ -151,13 +161,15 @@ async def _send(ctx: Context, to: str, reply: Reply):
                 await ctx.send(to, _msg([res]))
                 ctx.logger.info("OUT ResourceContent sent")
             elif DELIVERY == "github":
+                t = time.time()
                 try:
                     url = await asyncio.to_thread(_host_github, reply.image_png, reply.image_name)
                 except Exception as e:  # fall back to url mode for this message
                     ctx.logger.warning(f"github delivery failed, falling back to url: {e}")
                     url = await asyncio.to_thread(_host_url, reply.image_png, reply.image_name)
-                ctx.logger.info(f"OUT image url {url}")
+                ctx.logger.info(f"OUT image url {url} bytes={len(reply.image_png)} upload={time.time() - t:.1f}s")
                 await ctx.send(to, _msg([TextContent(type="text", text=f"![{reply.image_name}]({url})")]))
+                ctx.logger.info(f"OUT image message sent_at={_ts()}")
             else:
                 url = await asyncio.to_thread(_host_url, reply.image_png, reply.image_name)
                 ctx.logger.info(f"OUT image url {url}")
@@ -172,8 +184,8 @@ async def _send(ctx: Context, to: str, reply: Reply):
             "card_kind": reply.card_kind, "card_payload": json.dumps(reply.card_payload),
             "preferred_drawer_width_px": "540"}))
     await ctx.send(to, _msg(content, end=reply.end_session))
-    ctx.logger.info(f"OUT text ({len(reply.text)} chars) card={reply.card_kind} end={reply.end_session}: "
-                    f"{reply.text[:160]!r}")
+    ctx.logger.info(f"OUT text ({len(reply.text)} chars) card={reply.card_kind} end={reply.end_session} "
+                    f"sent_at={_ts()}: {reply.text[:160]!r}")
 
 
 @chat_proto.on_message(ChatMessage)
@@ -185,6 +197,10 @@ async def on_message(ctx: Context, sender: str, msg: ChatMessage):
     for c in msg.content:
         if isinstance(c, MetadataContent):
             ctx.logger.info(f"IN metadata={json.dumps(c.metadata)[:600]}")
+    ignored = _ignore_reason(msg, text)
+    if ignored:
+        ctx.logger.info(f"{ignored}: msg_id={msg.msg_id} sender={sender[:16]}")
+        return
     dup = _duplicate(sender, str(msg.msg_id), text, time.time())
     if dup:
         ctx.logger.info(f"{dup}: msg_id={msg.msg_id} sender={sender[:16]} text={text[:80]!r}")
@@ -200,6 +216,9 @@ async def on_message(ctx: Context, sender: str, msg: ChatMessage):
     if not text and start:
         ctx.storage.set(key, session)
         return
+    if is_long_action(session, text):
+        await ctx.send(sender, _msg([TextContent(type="text", text="Working on it, about 15 to 20 seconds.")]))
+        ctx.logger.info(f"OUT working notice sent_at={_ts()}")
     stage, t = session["stage"], time.time()
     handle_start = _ts()
     replies = await asyncio.to_thread(handle, session, text, services)
