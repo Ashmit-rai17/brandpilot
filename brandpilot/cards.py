@@ -43,6 +43,26 @@ def directions_carousel(dirs: list[Direction]) -> dict:
     return {"title": "Two visual directions", "subtitle": "Pick one to build your design system", "items": items}
 
 
+SUGGESTION_KIND = {"patch": ("Revision", "You review the change before anything is applied"),
+                   "social_post": ("New asset", "Square post from the same design system"),
+                   "done": ("Finish", "CSS tokens, assets and revision history")}
+
+
+def suggestions_carousel(sugs: list[dict]) -> dict:
+    items = []
+    for i, x in enumerate(sugs, 1):
+        badge, detail = SUGGESTION_KIND[x["kind"]]
+        items.append({
+            "id": x["id"],
+            "title": x["label"],
+            "subtitle": f"Suggestion {i}",
+            "badges": [{"label": badge, "variant": "info"}],
+            "secondary_text": detail,
+            "primary_cta": {"label": "Do this", "selection": {"action": "apply_suggestion", "suggestion_id": x["id"]}},
+        })
+    return {"title": "Suggested next steps", "subtitle": "Tap one, or reply with its number", "items": items}
+
+
 def ds_review(ds: DesignSystem, title: str = "Approve your design system") -> dict:
     p = ds.palette
     rows = [
@@ -98,6 +118,9 @@ def parse_selection(text: str) -> dict:
         except ValueError:
             pass
     low = t.lower()
+    m = re.search(r"\bsug_[a-z0-9_]+", low)  # a narrated suggestion click ("... apply_suggestion sug_v1_done")
+    if m:
+        return {"action": "apply_suggestion", "suggestion_id": m.group(0)}
     sel: dict = {}
     m = re.search(r"dir[_ ]?(\d)", low)
     if m:

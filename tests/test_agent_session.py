@@ -57,3 +57,27 @@ def test_retry_and_restart_are_never_skipped():
     s = "agent1q-retry-test"
     for i, t in enumerate(["retry", "retry", "@brandpilot restart", "@brandpilot restart"]):
         assert agent._duplicate(s, f"r{i}", t, 2000.0 + i) is None
+
+
+# Live 24 Oct 10:02-10:04 UTC: ASI:One streamed its own assistant reply to us.
+COMMENTARY = ("Well, that's beautifully broken — or fixed? Hard to tell with this thing. 🔧\n\nBrandPilot's back up and "
+              "cranked out v2 like nothing happened: new accent color, more vibrancy, and the fonts survived the apocalypse.")
+
+
+def test_asi1_stream_chunk_and_empty_messages_are_ignored():
+    from uagents_core.contrib.protocols.chat import EndStreamContent
+    chunk = _msg(TextContent(type="text", text=COMMENTARY), MetadataContent(type="metadata", metadata={"index": "0"}))
+    assert agent._ignore_reason(chunk, COMMENTARY) == "ASI:One stream chunk ignored"
+    assert agent._ignore_reason(_msg(EndStreamContent(type="end-stream", stream_id=uuid4())), "") \
+        == "message without text ignored"
+
+
+def test_real_messages_and_card_clicks_are_not_ignored():
+    click = '@agent1qw0pqhpynjdc7hx9r0q8g9ng6yzp3cflw7wpm5kfc8j78dy9qq3qudhsf7r {"action":"approve_ds","approved":true}'
+    assert agent._ignore_reason(_msg(TextContent(type="text", text=click)), click) is None
+    assert agent._ignore_reason(_msg(TextContent(type="text", text="@brandpilot restart")), "@brandpilot restart") is None
+    new_chat = _msg(StartSessionContent(type="start-session"), TextContent(type="text", text=BRIEF),
+                    MetadataContent(type="metadata", metadata={"reply-timeout": "120"}),
+                    MetadataContent(type="metadata", metadata={"x-session-id": "a36148d5"}))
+    assert agent._ignore_reason(new_chat, BRIEF) is None
+    assert agent._ignore_reason(_msg(StartSessionContent(type="start-session")), "") is None

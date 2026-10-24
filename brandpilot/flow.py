@@ -16,7 +16,7 @@ from typing import Callable, Optional
 from . import cards
 from .asi1 import compile_prompt
 from .brain import Brain, rule_patch
-from .kb import direction_from_style, fonts, lock_design_system
+from .kb import direction_from_style, fonts, lock_design_system, styles
 from .models import AssetRecord, Brief, DesignSystem, Direction, Patch
 from .render import compose, to_png
 from .revise import RevisionRejected, apply_patch, diff, palette_contrast_ok, preserved, LABELS
@@ -26,6 +26,8 @@ log = logging.getLogger("brandpilot.flow")
 BRIEF, DIRECTIONS, REVIEW_DS, ASSETS, REVISE_CONFIRM, DONE = (
     "BRIEF", "DIRECTIONS", "REVIEW_DS", "ASSETS", "REVISE_CONFIRM", "DONE")
 RESTART = re.compile(r"^\s*(restart|start over|new brand|reset)\b", re.I)
+RESTART_ANY = re.compile(r"\b(restart|start over)\b", re.I)  # "please restart" / "can we start over?"
+RETRY = re.compile(r"^\s*(retry|try again|regenerate)\b", re.I)
 YES = re.compile(r"^\s*(yes|y|ok|okay|approve|approved|looks good|confirm|go|sure)\b", re.I)
 NO = re.compile(r"^\s*(no|cancel|nope|reject|back)\b", re.I)
 CONFIRM = re.compile(r"\b(confirm(ed|s)?|approv(e|ed|es|al))\b", re.I)
@@ -39,6 +41,18 @@ MENTION = re.compile(r"^\s*@\S+\s*")  # ASI:One direct mentions arrive as "@bran
 NEW_BRIEF = re.compile(r"^\s*(?i:i'?m|i am|we'?re|we are)\s+(?:(?i:launching|building|starting)\b|[A-Z][\w&.-]*\s*,)"
                        r"|(?i:\b(?:headline|brand name|company|product|audience)\s*:)")
 NEW_BRAND_REPLY = "Looks like a new brand. Say 'restart' to start fresh, or ask for a revision to the current poster."
+# Universal intents. Greetings/thanks count only when nothing else is left once their words are removed,
+# so "hi, make the colors more vibrant" is still a revision.
+GREETING = re.compile(r"\b(hi|hello|hey|yo|good (morning|afternoon|evening))\b", re.I)
+THANKS = re.compile(r"\b(thanks|thank you|thx|great|nice|cool)\b", re.I)
+FILLER = re.compile(r"\b(there|again|so|much|very|a lot|all|brandpilot)\b", re.I)
+HELP = re.compile(r"^(what can you do|what do you do|help|how does (this|it) work|who are you)( for me)?[\s?.!]*$", re.I)
+STATUS = re.compile(r"^(status|where are we|what'?s next|what now)[\s?.!]*$", re.I)
+ACCEPT = re.compile(r"^(yes|sure|ok|okay|do it)( please)?[\s.!]*$", re.I)
+NUMBER = re.compile(r"^([1-3])[\s.!]*$")
+SUGGESTABLE = {"saturation", "temperature", "spacing"}  # the only Patch keys a suggestion may carry
+STAGE_LABEL = {BRIEF: "Brief", DIRECTIONS: "Directions", REVIEW_DS: "Design system review", ASSETS: "Assets",
+               REVISE_CONFIRM: "Revision review", DONE: "Done"}
 
 
 @dataclass
@@ -60,20 +74,62 @@ class Services:
 
 def new_session() -> dict:
     return {"stage": BRIEF, "brief": Brief().model_dump(), "directions": [], "ds": None,
-            "pending_ds": None, "assets": {}, "rejected": None}
+            "pending_ds": None, "assets": {}, "rejected": None, "suggestions": []}
+
+
+def is_restart(text: str) -> bool:
+    """'restart' at the start, or 'restart'/'start over' anywhere in a short message (under 25 words)."""
+    if RESTART.match(text):
+        return True
+    if len(text.split()) < 25 and RESTART_ANY.search(text):
+        log.info("restart detected inside message: %r", text[:80])
+        return True
+    return False
+
+
+def is_long_action(session: dict, text: str) -> bool:
+    """True when handling this message may generate an image (approve, approve revision, social post, retry)."""
+    text = MENTION.sub("", (text or "").strip())
+    stage, sel = session.get("stage"), cards.parse_selection(text)
+    action = sel.get("action")
+    if action:
+        if action == "apply_suggestion":
+            pick = next((x for x in session.get("suggestions") or [] if x["id"] == sel.get("suggestion_id")), None)
+            return bool(pick and pick["kind"] == "social_post")
+        return (stage, action) in {(REVIEW_DS, "approve_ds"), (REVISE_CONFIRM, "approve_patch")}
+    agrees = (YES.match(text) or CONFIRM.search(text)) and not (NO.match(text) or CANCEL.search(text))
+    if stage in (REVIEW_DS, REVISE_CONFIRM):
+        return bool(agrees)
+    if stage == ASSETS:
+        pending = session.get("suggestions") or []
+        n = NUMBER.match(text)
+        pick = pending[int(n.group(1)) - 1] if n and int(n.group(1)) <= len(pending) else (
+            pending[0] if len(pending) == 1 and ACCEPT.match(text) else None)
+        return bool(SOCIAL.search(text) or RETRY.match(text) or (pick and pick["kind"] == "social_post"))
+    return False
 
 
 def handle(session: dict, text: str, svc: Services) -> list[Reply]:
     text = MENTION.sub("", (text or "").strip())
-    if not session or RESTART.match(text):
+    restart = is_restart(text)
+    if not session or restart:
         session.clear()
         session.update(new_session())
-        if RESTART.match(text):
+        if restart:
             return [Reply("Starting fresh. Tell me about your company, product, audience, and a launch headline.",
                           "form", cards.brief_form(Brief()))]
     stage = session["stage"]
     sel = cards.parse_selection(text)
     try:
+        intent = None if sel else _intent(text)
+        if intent == "greeting" and stage == BRIEF and session["brief"] == Brief().model_dump():
+            return _on_brief(session, "hi", {}, svc)  # first contact keeps the intro + form
+        if intent:
+            return [_intent_reply(session, intent)]
+        replies = _on_suggestion(session, text, sel, svc)
+        if replies:
+            return replies
+        session["suggestions"] = []  # any other message drops pending suggestions
         if stage == BRIEF:
             return _on_brief(session, text, sel, svc)
         if stage == DIRECTIONS:
@@ -132,6 +188,14 @@ def _propose_directions(s, brief, svc):
         r = s["rejected"]
         lines.append(f"Ruled out: {r['name']}, because its {r['reason']}.")
     lines.append("Choose one on the card, or reply 1 or 2.")
+    tags = brief.tags()  # the same brief tags candidate_styles ranks styles by
+    hits = [sorted(tags & set(styles()[d.style_id]["use_when"])) for d in dirs]
+    best = max(range(len(dirs)), key=lambda i: len(hits[i]))  # ties keep the first direction
+    rec, h = dirs[best], hits[best]
+    why = f"it matches {_and(h)} from your brief" if h else "it is the closer fit to your brief"
+    lines.append(f"I'd go with {rec.name}: {why}. Say yes to use {rec.name}, or pick the other one.")
+    s["suggestions"] = [{"id": f"sug_{rec.id}", "label": f"Use {rec.name}", "kind": "pick_direction",
+                         "payload": {"direction_id": rec.id}}]
     return [Reply("\n\n".join(lines), "carousel", cards.directions_carousel(dirs))]
 
 
@@ -189,14 +253,21 @@ def _on_assets(s, text, sel, svc):
         return [Reply(f"That's already done: your poster uses design system v{ds.version}. "
                       "Ask for a revision, say 'social post', or 'done'.")]
     if DONE_RE.match(text):
-        s["stage"] = DONE
-        return [Reply(_launch_kit(ds, s), end_session=True)]
-    if re.match(r"^\s*(retry|try again|regenerate)\b", text, re.I):
+        return _finish(s, ds)
+    if RETRY.match(text):
         asset = next(reversed(s["assets"]), "poster") if s["assets"] else "poster"
         return _make_asset(s, svc, asset, regenerate=True, intro="")
     if SOCIAL.search(text):
         return _make_asset(s, svc, "social_post", regenerate=True, intro="")
     patch = svc.brain.write_patch(text, ds)
+    if patch.is_empty() and not patch.wants_font_change:
+        lines, card = _offer(s, ds)
+        return [Reply(f"I can help with your brand's design. Try:\n{lines}\n\nReply with a number, "
+                      "or ask for another change.", "carousel", card)]
+    return _propose(s, ds, patch)
+
+
+def _propose(s, ds, patch):
     try:
         new = apply_patch(ds, patch)
     except RevisionRejected as e:
@@ -223,6 +294,10 @@ def _on_revise_confirm(s, text, sel, svc):
                       cards.revision_review(old, new, diff(old, new), preserved(old, new)))]
     if action == "cancel_patch" or (not action and (NO.match(text) or CANCEL.search(text))):
         s["pending_ds"], s["stage"] = None, ASSETS
+        if (s.get("pending_patch") or {}).get("reason") == "suggestion":  # keep the list the user was reading
+            lines, card = _offer(s, old)
+            return [Reply(f"Cancelled. Design system stays at v{old.version}. Other options:\n{lines}",
+                          "carousel", card)]
         return [Reply(f"Cancelled. Design system stays at v{old.version}.")]
     if action == "approve_patch" or YES.match(text) or (not action and CONFIRM.search(text)):
         new = DesignSystem(**s["pending_ds"])
@@ -242,6 +317,177 @@ def _on_revise_confirm(s, text, sel, svc):
                  + ("Same background, recolored. " if not regenerate else "New background for the new image style. "))
         return _make_asset(s, svc, asset, regenerate=regenerate, intro=intro)
     return [Reply("Approve or cancel the proposed change.")]
+
+
+def _finish(s, ds):
+    s["stage"] = DONE
+    return [Reply(_launch_kit(ds, s), end_session=True)]
+
+
+# ---------- suggestions ----------
+
+def _suggestions(ds: DesignSystem, s) -> list[dict]:
+    """2-3 deterministic next steps. A design change is offered only if applying it really changes something."""
+    cands = [({"saturation": "vibrant"}, "Make the colors more vibrant") if ds.saturation != "vibrant"
+             else ({"saturation": "balanced"}, "Tone the colors down to balanced"),
+             ({"spacing": "high"}, "Give the layout more breathing room") if ds.spacing != "high"
+             else ({"spacing": "medium"}, "Tighten the spacing a little")]
+    if not any("temperature" in h.get("patch", {}) for h in ds.history):
+        cands.append(({"temperature": "warmer"}, "Warm up the palette"))
+    last = ds.history[-1].get("patch", {}) if ds.history else {}
+    out = []
+    for payload, label in cands:
+        if set(payload) & set(last):
+            continue  # never offer to undo (or redo) the change the user just approved
+        try:
+            changed = diff(ds, apply_patch(ds, Patch(**payload)))
+        except RevisionRejected:
+            changed = []
+        if changed and len(out) < 2:
+            (key, val), = payload.items()
+            out.append({"id": f"sug_v{ds.version}_{key}_{val}", "label": label, "kind": "patch", "payload": payload})
+    if "social_post" not in s["assets"]:
+        out.append({"id": f"sug_v{ds.version}_social_post", "label": "Make a matching social post",
+                    "kind": "social_post", "payload": {}})
+    else:
+        out.append({"id": f"sug_v{ds.version}_done", "label": "Finish and get your launch kit",
+                    "kind": "done", "payload": {}})
+    return out
+
+
+def _offer(s, ds):
+    """Store fresh suggestions; return them as a numbered text list (fallback) and a carousel card."""
+    s["suggestions"] = _suggestions(ds, s)
+    lines = "\n".join(f"{i}. {x['label']}" for i, x in enumerate(s["suggestions"], 1))
+    return lines, cards.suggestions_carousel(s["suggestions"])
+
+
+def _on_suggestion(s, text, sel, svc):
+    """Accept a pending suggestion by card click, number (ASSETS only) or "yes". None means not handled here."""
+    pending, stage = s.get("suggestions") or [], s["stage"]
+    if sel.get("action") == "apply_suggestion":
+        pick = next((x for x in pending if x["id"] == sel.get("suggestion_id")), None)
+        if pick is None:
+            return [Reply(f"That suggestion is no longer available. Next: {_next_step(s)}")]
+    elif pending and not sel and stage in (DIRECTIONS, ASSETS):
+        n = NUMBER.match(text) if stage == ASSETS else None  # at DIRECTIONS "1"/"2" still mean the direction
+        if n and int(n.group(1)) <= len(pending):
+            pick = pending[int(n.group(1)) - 1]
+        elif ACCEPT.match(text) and len(pending) > 1:
+            return [Reply(f"Which one? Reply {_choices(len(pending))}.")]
+        elif ACCEPT.match(text):
+            pick = pending[0]
+        else:  # planner-narrated click: "The user chose 'Make a matching social post'"
+            low = text.lower()
+            pick = next((x for x in pending if x["label"].lower() in low), None)
+            if pick is None:
+                return None
+    elif stage == ASSETS and not sel and ACCEPT.match(text):
+        return [Reply(f"There's nothing waiting for a yes right now. Next: {_next_step(s)}")]
+    else:
+        return None
+    s["suggestions"] = []
+    return _apply_suggestion(s, pick, svc)
+
+
+def _apply_suggestion(s, x, svc):
+    kind, payload = x["kind"], x["payload"]
+    if kind == "pick_direction":
+        return _on_directions(s, "", {"direction_id": payload["direction_id"]}, svc)  # same path as a card click
+    ds = DesignSystem(**s["ds"])
+    if kind == "patch":
+        if set(payload) - SUGGESTABLE:
+            raise ValueError(f"suggestion carries unexpected keys {sorted(payload)}")
+        return _propose(s, ds, Patch(**payload, reason="suggestion"))  # review card first, never auto-applied
+    if kind == "social_post":
+        return _make_asset(s, svc, "social_post", regenerate=True, intro="")
+    return _finish(s, ds)
+
+
+# ---------- universal intents ----------
+
+def _intent(text: str) -> Optional[str]:
+    if HELP.match(text):
+        return "help"
+    if STATUS.match(text):
+        return "status"
+    rest = re.sub(r"\W+", "", FILLER.sub("", THANKS.sub("", GREETING.sub("", text))))
+    if len(text.split()) <= 8 and not rest and (GREETING.search(text) or THANKS.search(text)):
+        return "greeting" if GREETING.search(text) else "thanks"
+    return None
+
+
+def _intent_reply(s, intent) -> Reply:
+    if intent == "help":
+        text = ("I'm BrandPilot, your brand design director. I turn a short brief into two visual directions, lock "
+                "the one you pick into a design system, then build an on-brand poster and social post. Every "
+                "revision is shown for approval first, and fonts stay locked so assets stay consistent. Try: "
+                "\"We're Lumen, a budgeting app for students. Headline: Money, made simple.\", "
+                "\"make the colors more vibrant\" or \"social post\".\n\n" + _status(s))
+    elif intent == "status":
+        text = _status(s)
+    elif intent == "greeting":
+        text = f"Hi! I'm BrandPilot, your brand design director. {_progress(s)} Next: {_next_step(s)}"
+    else:
+        text = f"You're welcome! {_progress(s)} Next: {_next_step(s)}"
+    if s["stage"] == BRIEF:
+        return Reply(text, "form", cards.brief_form(Brief(**s["brief"])))
+    return Reply(text)
+
+
+def _status(s) -> str:
+    stage, b = s["stage"], Brief(**s["brief"])
+    lines = [f"Stage: {STAGE_LABEL[stage]}.", f"Brand: {b.company or 'not set yet'}."]
+    if s.get("ds") and stage not in (BRIEF, DIRECTIONS):
+        ds = DesignSystem(**s["ds"])
+        lines.append(f"Design system: v{ds.version} ({ds.style_name}).")
+    lines.append(f"Assets: {_and(_asset_list(s)) or 'none yet'}.")
+    lines.append(f"Next: {_next_step(s)}")
+    return "\n".join(lines)
+
+
+def _progress(s) -> str:
+    stage, b = s["stage"], Brief(**s["brief"])
+    if stage == BRIEF or not b.company:
+        return "We're just getting started on your brief."
+    v = s["ds"]["version"] if s.get("ds") else 1
+    where = {DIRECTIONS: "two directions are ready to compare",
+             REVIEW_DS: f"design system v{v} is waiting for your approval",
+             REVISE_CONFIRM: f"a revision from v{v} to v{v + 1} is waiting for your approval",
+             DONE: "your launch kit is done"}.get(stage)
+    if where is None:
+        assets = _asset_list(s)
+        where = f"your {_and(assets)} {'is' if len(assets) == 1 else 'are'} ready" if assets else "assets come next"
+    return f"We're working on {b.company}; {where}."
+
+
+def _next_step(s) -> str:
+    stage = s["stage"]
+    if stage == BRIEF:
+        return f"tell me your {_and(Brief(**s['brief']).missing())}, or fill in the form."
+    if stage == DIRECTIONS:
+        return "pick direction 1 or 2" + (", or say yes to use my pick." if s.get("suggestions") else ".")
+    v = s["ds"]["version"]
+    if stage == REVIEW_DS:
+        return f"approve design system v{v}, or pick the other direction."
+    if stage == REVISE_CONFIRM:
+        return f"approve or cancel the proposed change v{v} to v{v + 1}."
+    if stage == DONE:
+        return "say 'restart' to design a new brand."
+    n = len(s.get("suggestions") or [])
+    return (f"reply {_choices(n)} for a suggestion, " if n else "") + "ask for a revision, say 'social post', or 'done'."
+
+
+def _asset_list(s) -> list[str]:
+    return [f"{k.replace('_', ' ')} (v{a['ds_version']})" for k, a in s["assets"].items()]
+
+
+def _and(items) -> str:
+    return " and ".join([", ".join(items[:-1]), items[-1]]) if len(items) > 1 else "".join(items)
+
+
+def _choices(n) -> str:
+    return _and([str(i) for i in range(1, n + 1)]).replace(" and ", " or ")
 
 
 # ---------- assets ----------
@@ -285,10 +531,11 @@ def _make_asset(s, svc, asset_type, regenerate, intro):
     check_lines = "\n".join(f"{'PASS' if c.passed else 'FAIL'}  {c.name}: {c.value} (needs {c.threshold})"
                             for c in checks)
     label = "Poster" if asset_type == "poster" else "Social post"
+    lines, card = _offer(s, ds)
     msg = (f"{intro}{label} built from design system v{ds.version}. Design check: {passed}/{len(checks)} passed.\n\n"
-           f"{check_lines}\n\nNext: ask for a revision (for example 'make the colors more vibrant'), "
-           "say 'social post' for a matching square post, or say 'done' for your launch kit.")
-    return [Reply(msg, image_png=png, image_name=out.name)]
+           f"{check_lines}\n\nWhat I'd do next:\n{lines}\n\nReply with a number or tap a card, "
+           "or ask for any other revision.")
+    return [Reply(msg, "carousel", card, image_png=png, image_name=out.name)]
 
 
 def _launch_kit(ds: DesignSystem, s) -> str:
