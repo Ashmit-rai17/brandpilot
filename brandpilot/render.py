@@ -203,7 +203,7 @@ def _draw_panels(bg: Image.Image, ds: DesignSystem, blocks, pad: int) -> Image.I
         elif ds.panel == "glass":
             d.rounded_rectangle(r, radius=pad, fill=(255, 255, 255, 200), outline=(255, 255, 255, 255), width=3)
         else:
-            d.rectangle(r, fill=_hex_rgb(pal.background) + (225,))
+            d.rectangle(r, fill=_hex_rgb(pal.background) + (255,))
     return Image.alpha_composite(img, layer).convert("RGB")
 
 
