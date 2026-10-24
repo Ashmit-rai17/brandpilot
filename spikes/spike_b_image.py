@@ -1,9 +1,11 @@
 """SPIKE B (gate): ASI1 image generation -> local file -> (optional) Agentverse storage upload.
 
-python spikes/spike_b_image.py            # generate + save data/spike_b.png, print response shape
-python spikes/spike_b_image.py --upload   # also upload to Agentverse ExternalStorage (needs AGENTVERSE_API_KEY)
+python -m spikes.spike_b_image             # generate + save data/spike_b.png, print response shape
+python -m spikes.spike_b_image --upload    # also upload to Agentverse ExternalStorage (needs AGENTVERSE_API_KEY)
 PASS = file opens locally. Display in ASI:One is verified by running agent.py and approving a design system.
 """
+import sys, pathlib  # noqa: E401
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # project root, so `python spikes/x.py` works
 import os
 import sys
 import time

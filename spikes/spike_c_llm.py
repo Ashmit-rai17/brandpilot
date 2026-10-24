@@ -1,4 +1,6 @@
-"""SPIKE C: ASI1 chat returns parseable JSON. python spikes/spike_c_llm.py"""
+"""SPIKE C: ASI1 chat returns parseable JSON. python -m spikes.spike_c_llm  (or: python spikes/spike_c_llm.py)"""
+import sys, pathlib  # noqa: E401
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # project root, so `python spikes/x.py` works
 from dotenv import load_dotenv
 
 load_dotenv()

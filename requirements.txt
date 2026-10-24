@@ -6,3 +6,5 @@ python-dotenv
 pillow>=10.3
 numpy
 pytest
+googleapis-common-protos==1.75.0
+protobuf==5.29.6

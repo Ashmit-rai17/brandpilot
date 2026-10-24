@@ -35,8 +35,13 @@ pip install -r requirements.txt
 cp .env.example .env          # fill ASI1_API_KEY, AGENT_SEED, AGENTVERSE_API_KEY
 python -m pytest -q           # offline end-to-end tests
 python simulate.py --offline  # full flow in the terminal, no API calls
+python -m spikes.spike_c_llm   # gate: ASI1 chat JSON (prints source: asi1)
+python -m spikes.spike_b_image # gate: ASI1 image -> data/spike_b.png (add --upload for Agentverse storage)
+python -m spikes.spike_a_hello # gate: echo agent reachable from ASI:One
 python agent.py               # open the inspector URL in the logs -> Connect -> Mailbox
 ```
+
+Spikes also run as plain scripts from the project root, e.g. `python spikes/spike_c_llm.py`.
 
 Then on agentverse.ai open the agent, fill in its README and handle, and click **Chat with Agent**. Example prompts:
 

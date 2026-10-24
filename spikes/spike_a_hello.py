@@ -1,10 +1,12 @@
 """SPIKE A (gate): smallest ASI:One-compatible agent. Echoes text back over the Agent Chat Protocol.
 
-1. python spikes/spike_a_hello.py
+1. python -m spikes.spike_a_hello   (or: python spikes/spike_a_hello.py)
 2. Open the 'Agent inspector available at' URL in the logs -> Connect -> Mailbox.
 3. agentverse.ai -> Agents -> this agent -> Chat with Agent (opens ASI:One). Send "hello".
 PASS = the echo reply appears in ASI:One. Copy the agent address into README.md.
 """
+import sys, pathlib  # noqa: E401
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # project root, so `python spikes/x.py` works
 import os
 import secrets
 from datetime import datetime, timezone
