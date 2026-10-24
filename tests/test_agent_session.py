@@ -81,3 +81,10 @@ def test_real_messages_and_card_clicks_are_not_ignored():
                     MetadataContent(type="metadata", metadata={"x-session-id": "a36148d5"}))
     assert agent._ignore_reason(new_chat, BRIEF) is None
     assert agent._ignore_reason(_msg(StartSessionContent(type="start-session")), "") is None
+
+
+def test_poster_markdown_rides_in_the_text_message():
+    url = "https://raw.githubusercontent.com/Ashmit-rai17/brandpilot/assets/posters/poster_v1-ebcb136c.png"
+    text = "Design system approved. Poster built from design system v1.\n\nWhat I'd do next:\n1. Make the colors more vibrant"
+    out = agent._with_image(text, "poster_v1.png", url)
+    assert out.startswith(f"![poster_v1.png]({url})\n\n") and out.endswith(text)

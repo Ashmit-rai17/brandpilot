@@ -150,6 +150,12 @@ def _host_github(png: bytes, name: str) -> str:
     return f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{path}"
 
 
+def _with_image(text: str, name: str, url: str) -> str:
+    """Poster markdown inside the same message as its text and suggestions card, so ASI:One can never show the
+    recommendations without the picture (live: a separate image-only message was dropped by a webhook 504)."""
+    return f"![{name}]({url})\n\n{text}"
+
+
 async def _send(ctx: Context, to: str, reply: Reply):
     if reply.image_png:
         try:
@@ -168,12 +174,11 @@ async def _send(ctx: Context, to: str, reply: Reply):
                     ctx.logger.warning(f"github delivery failed, falling back to url: {e}")
                     url = await asyncio.to_thread(_host_url, reply.image_png, reply.image_name)
                 ctx.logger.info(f"OUT image url {url} bytes={len(reply.image_png)} upload={time.time() - t:.1f}s")
-                await ctx.send(to, _msg([TextContent(type="text", text=f"![{reply.image_name}]({url})")]))
-                ctx.logger.info(f"OUT image message sent_at={_ts()}")
+                reply.text = _with_image(reply.text, reply.image_name, url)
             else:
                 url = await asyncio.to_thread(_host_url, reply.image_png, reply.image_name)
                 ctx.logger.info(f"OUT image url {url}")
-                await ctx.send(to, _msg([TextContent(type="text", text=f"![{reply.image_name}]({url})")]))
+                reply.text = _with_image(reply.text, reply.image_name, url)
         except Exception as e:
             ctx.logger.error(f"image delivery failed: {e}")
             reply.text = f"(Image delivery failed: {e}. The file is saved locally.)\n\n" + reply.text
