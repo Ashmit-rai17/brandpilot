@@ -7,3 +7,5 @@ __pycache__/
 .claude/
 .superpowers/
 agent1*_data.json
+.env.staging
+data-staging/

@@ -24,7 +24,14 @@ from uagents_core.contrib.protocols.chat import (
     ResourceContent, StartSessionContent, TextContent, chat_protocol_spec,
 )
 
-load_dotenv()
+# ENV_FILE=.env.staging runs a separate identity; it overrides the shell so no live value leaks in.
+# Unset, the default .env lookup is unchanged.
+if os.getenv("ENV_FILE"):
+    if not Path(os.environ["ENV_FILE"]).is_file():
+        raise SystemExit(f"ENV_FILE not found: {os.environ['ENV_FILE']}")
+    load_dotenv(os.environ["ENV_FILE"], override=True)
+else:
+    load_dotenv()
 
 from brandpilot.asi1 import generate_image  # noqa: E402
 from brandpilot.brain import Brain  # noqa: E402

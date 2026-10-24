@@ -22,8 +22,9 @@ Times are IST. Building ends 16:30 (final building and submission), closing 17:5
 
 | # | Task | Owner | Depends on | Acceptance | Status | Est |
 | --- | --- | --- | --- | --- | --- | --- |
-| S1 | `knowledge/references.json`: 2 verified references per style (url, name, style_id, verified_on) | Prashant | none | `python -m tests.validate_knowledge` prints OK | TODO | 40m |
-| S2 | Show one reference per direction in the carousel text | Raj | S1 | Reference name and URL appear, URL opens | TODO | 15m |
+| S1 | `knowledge/references.json`: 2 verified references per style (url, name, style_id, verified_on) | Prashant | none | `python -m tests.validate_knowledge` prints OK | IN PROGRESS (6 of 10: frutiger_aero has 0, neo_brutalism and swiss have 1 each) | 40m |
+| S2 | Show one reference per direction in the carousel text | Raj | S1, S5 | Reference name and URL appear, URL opens | TODO (delivered by S5 directions text) | 15m |
+| S5 | Design research (branch `research`): Tavily (domain-targeted), Openverse, Wikimedia; Are.na and Unsplash by Prashant. API-only, no scraping. Inspiration and licensed assets kept as separate reference types | Raj + Prashant | variation | Mocked tests green; directions unchanged with zero references; staging agent (8014) only until approved | IN PROGRESS | — |
 | S3 | Contract tests: invalid palette hex, unknown font id, patch with extra key rejected | Prashant | none | pytest green | DONE (18 passed) | 30m |
 | S4 | Demo checklist rehearsal with exact prompts | Prashant | M6 | Run completes in under 4 minutes | TODO | 15m |
 
@@ -33,7 +34,6 @@ Times are IST. Building ends 16:30 (final building and submission), closing 17:5
 | --- | --- | --- |
 | C1 | Social post demo segment | Cut if M6 not done by 15:15 |
 | C2 | Warmth revision in the demo | Demo vibrancy only |
-| C3 | Reference evidence (S1, S2) | Cut if not merged by 15:30 |
 | C4 | CSS launch kit in video | Mention verbally |
 
 ## Decisions
@@ -43,6 +43,7 @@ Times are IST. Building ends 16:30 (final building and submission), closing 17:5
 * Vibrancy uses HSV saturation (hue and value kept). Backgrounds are reused for vibrancy and spacing revisions.
 * 5 styles: Dark Minimal, Warm Editorial, Neo-brutalism, Frutiger Aero, Swiss International.
 * Payment Protocol, landing page, live scraping, multi-agent: out of scope.
+* Reference evidence (S1, S2) is no longer cut. Research uses official APIs only (Tavily with include_domains for Behance, Dribbble, BP&O, Awwwards; Openverse; Wikimedia Commons; Are.na; Unsplash when keyed). No scraping. References are inspiration only: never copied, never named in image prompts, never passed to the image generator.
 
 ## Demo script
 
