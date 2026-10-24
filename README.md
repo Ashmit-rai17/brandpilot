@@ -44,6 +44,7 @@ python agent.py               # open the inspector URL in the logs -> Connect ->
 Spikes also run as plain scripts from the project root, e.g. `python spikes/spike_c_llm.py`.
 
 Ports: `agent.py` uses `AGENT_PORT` (8010 in our `.env`), Spike A uses `SPIKE_PORT` (default 8011). If the inspector says it can't find the agent, check `lsof -i :PORT` for another app on the same port.
+If the browser inspector can't reach localhost at all, connect the mailbox from the terminal while the agent runs: `python -m spikes.connect_mailbox <port>` (uses `AGENTVERSE_API_KEY`).
 
 Then on agentverse.ai open the agent, fill in its README and handle, and click **Chat with Agent**. Example prompts:
 

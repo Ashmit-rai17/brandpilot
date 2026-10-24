@@ -6,7 +6,7 @@ Times are IST. Building ends 16:30 (final building and submission), closing 17:5
 
 | # | Task | Owner | Depends on | Acceptance | Status | Est |
 | --- | --- | --- | --- | --- | --- | --- |
-| M1 | Spike A: `python -m spikes.spike_a_hello` reachable in ASI:One | Raj | .env seed | Echo reply visible in ASI:One chat | TODO | 15m |
+| M1 | Spike A: `python -m spikes.spike_a_hello` reachable in ASI:One | Raj | .env seed | Echo reply visible in ASI:One chat | DONE (agent-to-agent via mailbox; ASI:One UI check pending Raj) | 15m |
 | M2 | Spike B: `python -m spikes.spike_b_image` | Raj | ASI1 key | `data/spike_b.png` opens; note latency | DONE (200, 6-8s, upload OK) | 10m |
 | M3 | Spike C: `python -m spikes.spike_c_llm` | Raj | ASI1 key | source prints `asi1`, two valid style ids | DONE (asi1 for brief + directions) | 5m |
 | M4 | Run `agent.py`, mailbox connect, full flow in ASI:One | Raj | M1-M3 | Poster image renders in ASI:One (resource mode) | TODO | 30m |
