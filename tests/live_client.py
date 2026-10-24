@@ -56,7 +56,9 @@ def serve():
             f.write(json.dumps(entry) + "\n")
 
     def download(asset_id: str) -> str:
-        data = ExternalStorage(identity=agent._identity).download(str(asset_id))
+        # storage_url must be passed: uagents_core's default reads a config attribute that doesn't exist
+        storage_url = os.getenv("AGENTVERSE_URL", "https://agentverse.ai") + "/v1/storage"
+        data = ExternalStorage(identity=agent._identity, storage_url=storage_url).download(str(asset_id))
         raw = data.get("contents") if isinstance(data, dict) else None
         if not raw:
             return f"download returned keys {list(data) if isinstance(data, dict) else type(data).__name__}"
