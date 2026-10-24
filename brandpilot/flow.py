@@ -32,6 +32,8 @@ CONFIRM = re.compile(r"\b(confirm(ed|s)?|approv(e|ed|es|al))\b", re.I)
 CANCEL = re.compile(r"\b(cancel(l?ed|s)?|reject(ed|s)?|declin(e|ed|es))\b", re.I)
 DONE_RE = re.compile(r"^\s*(done|finish|that's all|thats all|finished)\b", re.I)
 SOCIAL = re.compile(r"social|instagram|square post|ig post", re.I)
+STALE_ACTIONS = {"approve_ds", "reject_ds", "pick_direction", "submit_brief", "approve_patch", "cancel_patch"}
+EARLIER_CARD = re.compile(r"design system|direction", re.I)
 
 
 @dataclass
@@ -134,7 +136,7 @@ def _on_directions(s, text, sel, svc):
     if sel.get("direction_id"):
         pick = next((d for d in dirs if d.id == sel["direction_id"]), None)
     if pick is None:
-        m = re.search(r"\b([12])\b", text)
+        m = re.search(r"\b([12])\b", text) if len(text.strip()) <= 20 else None
         if m:
             pick = dirs[int(m.group(1)) - 1]
         else:
@@ -154,6 +156,9 @@ def _on_directions(s, text, sel, svc):
 
 def _on_review_ds(s, text, sel, svc):
     action = sel.get("action")
+    if action == "pick_direction" and any(d["id"] == sel.get("direction_id") for d in s["directions"]):
+        s["stage"] = DIRECTIONS
+        return _on_directions(s, text, sel, svc)
     if action == "reject_ds" or (not action and (NO.match(text) or CANCEL.search(text))):
         s["stage"] = DIRECTIONS
         dirs = [Direction(**d) for d in s["directions"]]
@@ -167,6 +172,10 @@ def _on_review_ds(s, text, sel, svc):
 
 def _on_assets(s, text, sel, svc):
     ds = DesignSystem(**s["ds"])
+    stale_prose = not sel and EARLIER_CARD.search(text) and (CONFIRM.search(text) or CANCEL.search(text))
+    if sel.get("action") in STALE_ACTIONS or stale_prose:
+        return [Reply(f"That's already done: your poster uses design system v{ds.version}. "
+                      "Ask for a revision, say 'social post', or 'done'.")]
     if DONE_RE.match(text):
         s["stage"] = DONE
         return [Reply(_launch_kit(ds, s), end_session=True)]
@@ -194,6 +203,10 @@ def _on_assets(s, text, sel, svc):
 def _on_revise_confirm(s, text, sel, svc):
     action = sel.get("action")
     old = DesignSystem(**s["ds"])
+    if action in {"approve_ds", "reject_ds", "pick_direction", "submit_brief"}:
+        new = DesignSystem(**s["pending_ds"])
+        return [Reply(f"Approve or cancel the proposed change v{old.version} to v{new.version}.", "review",
+                      cards.revision_review(old, new, diff(old, new), preserved(old, new)))]
     if action == "cancel_patch" or (not action and (NO.match(text) or CANCEL.search(text))):
         s["pending_ds"], s["stage"] = None, ASSETS
         return [Reply(f"Cancelled. Design system stays at v{old.version}.")]

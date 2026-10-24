@@ -145,3 +145,94 @@ def test_prose_form_submit_uses_text(tmp_path):
     handle(s, "The user submitted the form (submit_brief).\ncompany: Forge\nproduct: AI productivity tool\n"
               "audience: senior developers\nheadline: Ship calmer, build faster", svc)
     assert s["stage"] == DIRECTIONS
+
+
+# ---------- out-of-stage clicks and long planner prompts (real ASI:One traffic) ----------
+
+ADDR = "@agent1q2xyzlivetrafficaddress"
+LONG_PROMPT = (ADDR + " We are testing BrandPilot's complete interactive workflow. Please follow every step in order. "
+               "Step 1 — Brand brief\nStart the normal flow and wait for my choice before continuing.")
+
+
+def test_long_prompt_does_not_pick_direction(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF)])
+    assert len(LONG_PROMPT) > 20 and "Step 1" in LONG_PROMPT
+    r = handle(s, LONG_PROMPT, svc)
+    assert s["stage"] == DIRECTIONS and r[0].card_kind == "carousel" and "Which direction" in r[0].text
+
+
+def test_short_number_still_picks_direction(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF)])
+    handle(s, "1", svc)
+    assert s["stage"] == REVIEW_DS
+
+
+def test_pick_direction_click_at_review_switches(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1"])
+    first = s["ds"]["style_id"]
+    r = handle(s, ADDR + ' {"action":"pick_direction","direction_id":"dir_2","approved":true}', svc)
+    assert s["stage"] == REVIEW_DS and r[0].card_kind == "review"
+    assert s["ds"]["style_id"] == s["directions"][1]["style_id"] != first
+
+
+def test_stale_actions_at_assets_are_status_only(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1", "approve"])
+    img = svc.generate_image
+    assert s["stage"] == ASSETS and img.calls == 1
+    for text in (ADDR + ' {"action":"approve_ds","approved":true}',
+                 "The user approved the design system", "The user confirmed the design system"):
+        r = handle(s, text, svc)
+        assert s["stage"] == ASSETS and img.calls == 1 and s["ds"]["version"] == 1, text
+        assert "already done" in r[0].text and "design system v1" in r[0].text, text
+        assert not r[0].image_png
+
+
+def test_stale_actions_at_revise_confirm_keep_pending(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1", "approve", "make the colors more vibrant"])
+    for act in ("approve_ds", "reject_ds", "pick_direction", "submit_brief"):
+        r = handle(s, json.dumps({"action": act}), svc)
+        assert s["stage"] == REVISE_CONFIRM and s["pending_ds"] and r[0].card_kind == "review", act
+        assert "Approve or cancel the proposed change v1 to v2" in r[0].text
+
+
+REVISIONS = [("make the colors more vibrant", "saturation", "vibrant"), ("more vibrant", "saturation", "vibrant"),
+             ("can you make it pop", "saturation", "vibrant"), ("brighter colours", "saturation", "vibrant"),
+             ("warmer", "temperature", "warmer"), ("make it cooler", "temperature", "cooler"),
+             ("more breathing room", "spacing", "high"), ("tighter layout", "spacing", "low"),
+             ("change the image to something more organic", "image_style", None)]
+
+
+def _ds_for_revisions(tmp_path):
+    svc, s = _to(tmp_path, ["hi", json.dumps(BRIEF), "1", "approve"])
+    from brandpilot.models import DesignSystem
+    ds = DesignSystem(**s["ds"])
+    return ds.model_copy(update={"spacing": "medium", "saturation": "balanced"})
+
+
+def _check(patch, field, value):
+    got = getattr(patch, field)
+    assert got and not patch.is_empty() and (value is None or got == value), (field, got)
+
+
+def test_revision_mapping_rules(tmp_path):
+    ds = _ds_for_revisions(tmp_path)
+    for req, field, value in REVISIONS:
+        _check(Brain(offline=True).write_patch(req, ds), field, value)
+
+
+def test_revision_mapping_asi1(tmp_path, monkeypatch):
+    ds = _ds_for_revisions(tmp_path)
+    for req, field, value in REVISIONS:
+        reply = {field: value or "organic natural textures"}
+        monkeypatch.setattr("brandpilot.asi1.chat_json", lambda *a, _r=reply, **k: dict(_r))
+        _check(Brain(offline=False).write_patch(req, ds), field, value)
+
+
+def test_font_change_serif_rejected(tmp_path):
+    from brandpilot.revise import RevisionRejected, apply_patch
+    import pytest
+    ds = _ds_for_revisions(tmp_path)
+    patch = Brain(offline=True).write_patch("change the font to serif", ds)
+    assert patch.wants_font_change
+    with pytest.raises(RevisionRejected):
+        apply_patch(ds, patch)
