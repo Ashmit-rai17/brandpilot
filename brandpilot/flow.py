@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -196,6 +197,7 @@ def _on_revise_confirm(s, text, sel, svc):
         new = DesignSystem(**s["pending_ds"])
         changes = diff(old, new)
         changed_keys = {k for k, _, _ in changes}
+        log.info("revision v%s -> v%s changed=%s", old.version, new.version, changes)
         s["ds"], s["pending_ds"], s["stage"] = new.model_dump(), None, ASSETS
         # Color vibrancy and spacing changes reuse the same background, so composition is preserved.
         regenerate = bool(changed_keys & {"image_style"}) or (
@@ -223,7 +225,9 @@ def _make_asset(s, svc, asset_type, regenerate, intro):
     prompt = compile_prompt(ds, asset_type)
     if regenerate or not prev:
         try:
+            t = time.time()
             bg = svc.generate_image(prompt)
+            log.info("image generated in %.1fs", time.time() - t)
         except Exception as e:
             log.warning("image generation failed: %s", e)
             return [Reply(f"{intro}Image generation failed ({e}). Your design system is saved at v{ds.version}. "
@@ -236,6 +240,9 @@ def _make_asset(s, svc, asset_type, regenerate, intro):
         bg_path = Path(prev["background_path"])
         bg = bg_path.read_bytes()
         bg_sat = prev["bg_saturation"]
+    log.info("asset %s v%s background=%s (%s) primary=%s accent=%s saturation=%s", asset_type, ds.version,
+             bg_path, "new" if regenerate or not prev else "reused", ds.palette.primary, ds.palette.accent,
+             ds.saturation)
     img, checks, layout = compose(bg, ds, brief, asset_type, bg_saturation=bg_sat)
     png = to_png(img)
     out = folder / f"{asset_type}_v{ds.version}.png"

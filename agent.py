@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import secrets
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -25,6 +26,7 @@ load_dotenv()
 
 from brandpilot.asi1 import generate_image  # noqa: E402
 from brandpilot.brain import Brain  # noqa: E402
+from brandpilot.cards import parse_selection  # noqa: E402
 from brandpilot.flow import Reply, Services, handle, new_session  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
@@ -72,10 +74,15 @@ async def _send(ctx: Context, to: str, reply: Reply):
     if reply.image_png:
         try:
             if DELIVERY == "resource":
+                t = time.time()
                 res = await asyncio.to_thread(_host_resource, reply.image_png, reply.image_name, to)
+                ctx.logger.info(f"OUT image uploaded asset={res.resource_id} bytes={len(reply.image_png)} "
+                                f"in {time.time() - t:.1f}s")
                 await ctx.send(to, _msg([res]))
+                ctx.logger.info("OUT ResourceContent sent")
             else:
                 url = await asyncio.to_thread(_host_url, reply.image_png, reply.image_name)
+                ctx.logger.info(f"OUT image url {url}")
                 await ctx.send(to, _msg([TextContent(type="text", text=f"![{reply.image_name}]({url})")]))
         except Exception as e:
             ctx.logger.error(f"image delivery failed: {e}")
@@ -87,17 +94,25 @@ async def _send(ctx: Context, to: str, reply: Reply):
             "card_kind": reply.card_kind, "card_payload": json.dumps(reply.card_payload),
             "preferred_drawer_width_px": "540"}))
     await ctx.send(to, _msg(content, end=reply.end_session))
+    ctx.logger.info(f"OUT text ({len(reply.text)} chars) card={reply.card_kind} end={reply.end_session}: "
+                    f"{reply.text[:160]!r}")
 
 
 @chat_proto.on_message(ChatMessage)
 async def on_message(ctx: Context, sender: str, msg: ChatMessage):
     await ctx.send(sender, ChatAcknowledgement(timestamp=datetime.now(timezone.utc), acknowledged_msg_id=msg.msg_id))
     text = "\n".join(c.text for c in msg.content if isinstance(c, TextContent)).strip()
+    ctx.logger.info(f"IN types={[type(c).__name__ for c in msg.content]} text={text[:600]!r}")
+    for c in msg.content:
+        if isinstance(c, MetadataContent):
+            ctx.logger.info(f"IN metadata={json.dumps(c.metadata)[:600]}")
     if not text and any(isinstance(c, StartSessionContent) for c in msg.content):
         return
     key = f"session:{sender}"  # one design session per ASI:One user, as in the official cards example
     session = ctx.storage.get(key) or new_session()
+    stage, t = session["stage"], time.time()
     replies = await asyncio.to_thread(handle, session, text, services)
+    ctx.logger.info(f"FLOW {stage} -> {session['stage']} sel={parse_selection(text)} handled in {time.time() - t:.1f}s llm={services.brain.last_source}")
     ctx.storage.set(key, session)  # saved before sending, so a delivery error never loses state
     for r in replies:
         await _send(ctx, sender, r)
