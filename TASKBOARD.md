@@ -11,7 +11,7 @@ Times are IST. Building ends 16:30 (final building and submission), closing 17:5
 | M3 | Spike C: `python -m spikes.spike_c_llm` | Raj | ASI1 key | source prints `asi1`, two valid style ids | DONE (asi1 for brief + directions) | 5m |
 | M4 | Run `agent.py`, mailbox connect, full flow in ASI:One | Raj | M1-M3 | Poster image renders in ASI:One (resource mode) | AGENT SIDE DONE (2 clean mailbox runs; ResourceContent sent + downloadable by recipient). ASI:One render check pending Raj | 30m |
 | M5 | Image visibility test in a shared chat opened from another account | Raj + Prashant | M4 | Prashant sees the poster via the shared URL | TODO | 10m |
-| M6 | Fix whatever M4/M5 reveal (cards parsing, delivery) | Raj | M4 | Two clean end-to-end runs | IN PROGRESS (fixed: prose clicks e5d6f6e, asset 409 c7bdaf9; open: stale-card clicks from ASI:One) | 45m |
+| M6 | Fix whatever M4/M5 reveal (cards parsing, delivery) | Raj | M4 | Two clean end-to-end runs | DONE agent side (fixes e5d6f6e, c7bdaf9, 46ba897, c9d497f; verified 14:38 incl. prose click + repeated approve). ASI:One UI retest pending Raj | 45m |
 | M7 | Agentverse profile: name, handle, README with example prompts, badges | Prashant | M4 | ASI:One search finds BrandPilot | TODO | 20m |
 | M8 | Public GitHub repo, README address filled, no `.env` committed | Prashant | M4 | Repo opens logged out | TODO | 15m |
 | M9 | Record shared-chat URL of a clean run | Raj | M6 | URL opens logged out | TODO | 10m |
