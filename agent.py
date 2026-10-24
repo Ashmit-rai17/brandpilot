@@ -5,6 +5,7 @@ Run:  python agent.py   then open the inspector URL from the logs, click Connect
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -33,7 +34,9 @@ from brandpilot.flow import Reply, Services, handle, new_session  # noqa: E402
 logging.basicConfig(level=logging.INFO)
 SEED = os.getenv("AGENT_SEED") or secrets.token_hex(16)
 NAME = os.getenv("AGENT_NAME", "BrandPilot")
-DELIVERY = os.getenv("IMAGE_DELIVERY", "resource")  # resource | url
+DELIVERY = os.getenv("IMAGE_DELIVERY", "resource")  # resource | url | github
+GITHUB_REPO = os.getenv("GITHUB_REPO", "Ashmit-rai17/brandpilot")
+GITHUB_BRANCH = "assets"  # posters only; main is never written
 AGENTVERSE_URL = os.getenv("AGENTVERSE_URL", "https://agentverse.ai")
 
 agent = Agent(name=NAME, seed=SEED, port=int(os.getenv("AGENT_PORT", "8000")),
@@ -76,6 +79,31 @@ def _host_url(png: bytes, name: str) -> str:
     return url.replace("tmpfiles.org/", "tmpfiles.org/dl/", 1).replace("http://", "https://", 1)
 
 
+def _host_github(png: bytes, name: str) -> str:
+    """Public raw.githubusercontent.com link: commit the PNG to the 'assets' branch via the contents API."""
+    token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise RuntimeError("GITHUB_TOKEN not set")
+    api = f"https://api.github.com/repos/{GITHUB_REPO}"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+               "X-GitHub-Api-Version": "2022-11-28"}
+    r = requests.get(f"{api}/git/ref/heads/{GITHUB_BRANCH}", headers=headers, timeout=30)
+    if r.status_code == 404:  # create the branch from main's head; main itself is untouched
+        main = requests.get(f"{api}/git/ref/heads/main", headers=headers, timeout=30)
+        main.raise_for_status()
+        r = requests.post(f"{api}/git/refs", headers=headers, timeout=30,
+                          json={"ref": f"refs/heads/{GITHUB_BRANCH}", "sha": main.json()["object"]["sha"]})
+    if r.status_code >= 400:
+        raise RuntimeError(f"branch {GITHUB_BRANCH}: HTTP {r.status_code} {r.text[:200]}")
+    path = f"posters/{asset_name(name)}"
+    r = requests.put(f"{api}/contents/{path}", headers=headers, timeout=60,
+                     json={"message": f"poster {path}", "branch": GITHUB_BRANCH,
+                           "content": base64.b64encode(png).decode()})
+    if r.status_code >= 400:
+        raise RuntimeError(f"upload {path}: HTTP {r.status_code} {r.text[:200]}")
+    return f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{path}"
+
+
 async def _send(ctx: Context, to: str, reply: Reply):
     if reply.image_png:
         try:
@@ -86,6 +114,14 @@ async def _send(ctx: Context, to: str, reply: Reply):
                                 f"in {time.time() - t:.1f}s")
                 await ctx.send(to, _msg([res]))
                 ctx.logger.info("OUT ResourceContent sent")
+            elif DELIVERY == "github":
+                try:
+                    url = await asyncio.to_thread(_host_github, reply.image_png, reply.image_name)
+                except Exception as e:  # fall back to url mode for this message
+                    ctx.logger.warning(f"github delivery failed, falling back to url: {e}")
+                    url = await asyncio.to_thread(_host_url, reply.image_png, reply.image_name)
+                ctx.logger.info(f"OUT image url {url}")
+                await ctx.send(to, _msg([TextContent(type="text", text=f"![{reply.image_name}]({url})")]))
             else:
                 url = await asyncio.to_thread(_host_url, reply.image_png, reply.image_name)
                 ctx.logger.info(f"OUT image url {url}")
