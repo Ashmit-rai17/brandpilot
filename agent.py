@@ -27,6 +27,7 @@ load_dotenv()
 from brandpilot.asi1 import generate_image  # noqa: E402
 from brandpilot.brain import Brain  # noqa: E402
 from brandpilot.cards import parse_selection  # noqa: E402
+from brandpilot.naming import asset_name  # noqa: E402
 from brandpilot.flow import Reply, Services, handle, new_session  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
@@ -55,7 +56,7 @@ def _host_resource(png: bytes, name: str, recipient: str):
     if not key:
         raise RuntimeError("AGENTVERSE_API_KEY not set")
     storage = ExternalStorage(api_token=key, storage_url=f"{AGENTVERSE_URL}/v1/storage")
-    asset_id = storage.create_asset(name=name, content=png, mime_type="image/png")
+    asset_id = storage.create_asset(name=asset_name(name), content=png, mime_type="image/png")
     storage.set_permissions(asset_id=asset_id, agent_address=recipient)
     uri = f"agent-storage://{storage.storage_url}/{asset_id}"
     return ResourceContent(type="resource", resource_id=UUID(str(asset_id)),
